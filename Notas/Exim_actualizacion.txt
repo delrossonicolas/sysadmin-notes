@@ -1,0 +1,353 @@
+-------------------------------
+Actualizacion de carpeta Exim / Configure en servidores
+-------------------------------
+
+
+El objetivo de este documento es explicar paso a paso los scripts para actualizar el Exim y como esta armado el servicio en los servidores con panel, tanto dedicados, compartidos y compartidos-nube.
+
+🗂️ Antes de tocar cualquier cosa en /exim/ se siguen algunos parametros de entregabilidad detallados en este jira, como la nomenclatura de los BKP: EN-833 - [usuario6] Normalizacion del Configure en Cloud/Dedicados con panel. Done
+🗂️ Antes que nada exim no se puede instalar en cualquier entorno, actualmente entregabilidad nos valida las siguientes versiones:
+
+perl-5.16.3-299.el7_9.x86_64                     ✓ perl --version
+python3-3.6.8-21.el7_9.x86_64                    ✓ python3 --version
+Exim version 4.93 #7                             ✓ /opt/exim/bin/exim -bV
+CentOS Linux release 7.9.2009 (Core)          (Filtrado desde BO) 
+libmaxminddb-devel-1.2.0-6.el7.x86_64         (actualiza el script de subida yum install -y libmaxminddb libmaxminddb-devel)
+libmaxminddb-1.2.0-6.el7.x86_64               (actualiza el script de subida yum install -y libmaxminddb libmaxminddb-devel)
+
+
+📝 Para saber si los servidores son aptos, se obtiene  una lista de servidores dedicados/compartidos con panel y Centos7 
+https://empresa.com/infraestructura/servidores
+
+
+Una vez tengamos la lista se la podemos pasar a este script que se armó para chequear las versiones:
+
+
+##Dada la lista obtenida de back de servidores centos 7. Este script chequea los siguientes criterios para aplicar actualizacion de /exim en dedicados y arma una lista
+###########################################################################################################################################
+###perl-5.16.3-299.el7_9.x86_64                     ✓ perl --version
+###python3-3.6.8-21.el7_9.x86_64                    ✓ python3 --version
+###Exim version 4.93 #7                             ✓ /opt/exim/bin/exim -bV
+###########################################################################################################################################
+###CentOS Linux release 7.9.2009 (Core)          (Filtrado desde BO)
+###libmaxminddb-devel-1.2.0-6.el7.x86_64         (actualiza el script de subida yum install -y libmaxminddb libmaxminddb-devel)
+###libmaxminddb-1.2.0-6.el7.x86_64               (actualiza el script de subida yum install -y libmaxminddb libmaxminddb-devel)
+###########################################################################################################################################
+ 
+# Lista de servidores destino
+#!/bin/bash
+ 
+SERVIDORES=(
+aaa
+aaaaaa
+...
+)
+ 
+echo -e "SERVIDOR\tPERL\tPYTHON3\tEXIM"
+ 
+for srv in "${SERVIDORES[@]}"; do
+    perl_v=$(ssh -o ConnectTimeout=5 "$srv" "perl -e 'print \$^V'" 2>/dev/null)
+ 
+    python_v=$(ssh -o ConnectTimeout=5 "$srv" "python3 --version 2>/dev/null" \
+               | cut -d' ' -f2)
+ 
+    exim_v=$(ssh -o ConnectTimeout=5 "$srv" "/opt/exim/bin/exim -bV 2>/dev/null" \
+               | head -n1)
+ 
+    perl_v=${perl_v:-"-"}
+    python_v=${python_v:-"-"}
+    exim_v=${exim_v:-"-"}
+ 
+    echo -e "${srv}\t${perl_v}\t${python_v}\t${exim_v}"
+done
+
+
+📗 Copiamos los resultados en un .ods y vamos verificando que togan todos los requisitos necesarios para actualizar el exim:
+
+
+🖥️ Actualizar en Dedicados:
+
+
+
+Los dedicados usan el siguiente repo de git: http://gitlab.dedicado Descargarlo y nombrar la carpeta entera como exim
+
+
+Se arma un script para subir la carpeta al cual se le tiene que pasar los servidores en lista previamente validados:
+
+ATENCION: si el servidor dedicado tiene configuracion propia (.has_own_conf) el script corta y sigue con el siguiente en la lista.
+
+ATENCION: el archivo configure tiene una variable harcodeada, la cual es el hostname del servidor. Como tardariamos mucho en cambiar cada configure en cada servidor para adaptar todos los hostname, el script de subida directamente toma la variable
+primary_hostname =  gostname hace un ssh al servidor en la lista para leer el hostname y la reemplaza localmente. Esto lo hace solo el script en una carpeta local y despues la sube.
+
+
+El script verifica si el servidor tiene configuracion propia, crea un exim.bkp, sube la carpeta temporal, ajusta permisos con el hostname cambiado correctamente y reinicia el exim despues de esperar 3 segundos. Al final devuelve una lista si fallaron
+
+Subida.sh
+#!/bin/bash
+## Verificar si el servidor tiene configuración propia- Si la tiene no hace nada
+## Este script sube la carpeta entera /exim a /etc haciendo un backup de la anterior, si existe un .bkp lo pisa
+## Tambien reemplaza "servidor-1337272-x.dominio.com" por el hostname del dedicado.
+## Crea una carpeta temporal y la sube. Reinicia exim
+ 
+# Lista de servidores destino
+SERVIDORES=(
+aaaa
+)
+ 
+DESTINO_REMOTO="/etc/exim"
+FALLIDOS=()   # acá guardamos los que fallan
+ 
+for SERVIDOR in "${SERVIDORES[@]}"; do
+  echo -e "\033[1;33mProcesando servidor: $SERVIDOR\033[0m"
+ 
+ 
+  # Verificar si el servidor tiene configuración propia
+  HAS_CONF=$(ssh -o BatchMode=yes "$SERVIDOR" "test -f ${DESTINO_REMOTO}/.has_own_conf && echo HAS_OWN_CONF")
+ 
+if [[ "$HAS_CONF" == "HAS_OWN_CONF" ]]; then
+    echo "→ Servidor $SERVIDOR tiene configuración propia (.has_own_conf). Se salta."
+    continue
+fi
+ 
+  echo "→ Servidor $SERVIDOR NO tiene configuración propia, sigo."
+ 
+ 
+  # Backup remoto
+  ssh -o BatchMode=yes "$SERVIDOR" "
+    if [ -d ${DESTINO_REMOTO} ]; then
+      cp -a ${DESTINO_REMOTO} ${DESTINO_REMOTO}.bkp
+      echo 'Backup completo de /etc/exim hecho en /etc/exim.bkp.'
+    else
+      echo 'No existía /etc/exim, no se hizo backup.'
+    fi
+  " || {
+        echo "No se pudo conectar a $SERVIDOR (sin clave SSH)."
+        FALLIDOS+=("$SERVIDOR")
+        continue
+      }
+ 
+  # Crea carpeta temporal en /tmp que después borra, así reemplaza el archivo configure
+  TMPDIR="/tmp/exim.$(date +%s%N)"
+  mkdir -p "$TMPDIR/exim"
+  cp -r ./exim/* "$TMPDIR/exim/"
+ 
+  # Obtener el hostname completo desde el servidor remoto
+  hostname_full=$(ssh "$SERVIDOR" 'cat /etc/hostname')
+ 
+  # Reemplazar en el configure "servidor-1337272-x.dominio.com" por el hostname
+  sed -i "s/aaax.dominio.com/$hostname_full/g" "$TMPDIR/exim/configure"
+ 
+  # Copiar la carpeta temporal
+  scp -o BatchMode=yes -r "$TMPDIR"/exim/* "root@$SERVIDOR:${DESTINO_REMOTO}/" \
+  && echo "Contenido de exim copiado con éxito a $SERVIDOR" \
+  || {
+        echo "No se pudo copiar contenido a $SERVIDOR (sin clave SSH o inaccesible)"
+        FALLIDOS+=("$SERVIDOR")
+        rm -rf "$TMPDIR"
+        continue
+      }
+    
+  # Instalar dependencias en remoto
+  ssh -o BatchMode=yes "$SERVIDOR" "yum install -y libmaxminddb libmaxminddb-devel" \
+  || {
+        echo "No se pudo instalar librerías en $SERVIDOR"
+        FALLIDOS+=("$SERVIDOR")
+        rm -rf "$TMPDIR"
+        continue
+      }
+ 
+  # Asegurar scripts ejecutables
+  ssh -o BatchMode=yes "root@$SERVIDOR" "chmod a+x ${DESTINO_REMOTO}/dnsbl/notifica_correo_ip.bsh" \
+  || {
+        echo "No se pudieron ajustar permisos en $SERVIDOR (sin clave SSH o inaccesible)"
+        FALLIDOS+=("$SERVIDOR")
+        rm -rf "$TMPDIR"
+        continue
+      }
+ 
+  # Reiniciar Exim
+  ssh -o BatchMode=yes "$SERVIDOR" "
+    if systemctl is-active --quiet exim.service; then
+      echo \"Esperando 3 segundos antes de reiniciar Exim...\"
+      sleep 3
+      systemctl restart exim.service && echo \"[\$(hostname)] Exim reiniciado correctamente.\"
+    else
+      echo \"[\$(hostname)] Exim está detenido. No se reinicia.\"
+    fi
+  " || {
+        echo "No se pudo reiniciar Exim en $SERVIDOR"
+        FALLIDOS+=("$SERVIDOR")
+        rm -rf "$TMPDIR"
+        continue
+      }
+   
+  # Limpiar los directorios temporales
+  rm -rf "$TMPDIR"
+   
+  echo -e "\033[1;32mCompletado para $SERVIDOR\033[0m"
+done
+ 
+# Resumen final
+if [ ${#FALLIDOS[@]} -gt 0 ]; then
+  echo -e "\n\033[1;31mServidores con error:\033[0m"
+  printf '%s\n' "${FALLIDOS[@]}"
+  printf '%s\n' "${FALLIDOS[@]}" > servidores_fallidos.txt
+else
+  echo -e "\n\033[1;32mTodos los servidores procesados con éxito.\033[0m"
+fi
+🖥️ Actualizar en Compartidos ( > server29 ):
+
+No es necesario validar las versiones para actualizar los compartidos, los mismos deberian tener las versiones adecuadas y correspondientes, validar con entregabilidad.
+
+Los compartidos usan el siguiente repo de git: http://git/iti/configure-compartidos Descargarlo y nombrar la carpeta entera como exim
+
+
+
+ATENCION: el archivo configure tiene una variable harcodeada, la cual es:hide mysql_servers = 127.0.0.1::6033/aaa/proxyuser/aaa. Como tardariamos mucho en cambiar cada configure en cada servidor para adaptar todos los hostname, el script de subida directamente toma la variable hide mysql_servers = 127.0.0.1::6033/server38/proxyuser/3ahrHTX7vs  hace un ssh al servidor en la lista para leer el hostname y la reemplaza localmente. Esto lo hace solo el script en una carpeta local y despues la sube.
+Tener en cuenta que en los compartidos el hostname es distinto entre a y b, por eso el exim necesita el hostname con un caracter menos ej. servidor  y no servidora/b
+
+ATENCION: los compartidos tambien tienen el archivo hostname, ambos son cambiados por el script antes de subir. primary_hostname = 123dominio.com
+
+
+
+El script , crea un exim.bkp, sube la carpeta temporal con el hostname cambiado correctamente, ajusta permisos y reinicia el exim despues de esperar 3 segundos. Al final devuelve una lista si fallaron
+
+
+Subida.sh
+
+--------------------------------------------------------------------------------
+#!/bin/bash
+##Preserva permisos de archivos existentes -- Funcional
+# Lista de servidores destino
+SERVIDORES=(
+
+)
+ 
+# Ruta remota donde se copiaran los archivos
+DESTINO_REMOTO="/etc/exim"
+ 
+for SERVIDOR in "${SERVIDORES[@]}"; do
+  echo -e "\033[1;33mProcesando servidor: $SERVIDOR\033[0m"
+ 
+  # Backup remoto
+  ssh -o BatchMode=yes "$SERVIDOR" "
+    if [ -d ${DESTINO_REMOTO} ]; then
+      cp -a ${DESTINO_REMOTO} ${DESTINO_REMOTO}.bkp
+      echo 'Backup completo de /etc/exim hecho en /etc/exim.bkp.'
+    else
+      echo 'No existía /etc/exim, no se hizo backup.'
+    fi
+  " || {
+        echo "No se pudo conectar a $SERVIDOR (sin clave SSH)."
+        FALLIDOS+=("$SERVIDOR")
+        continue
+      }
+ 
+  # Crea carpeta temporal en /tmp que después borra, así reemplaza el archivo configure
+  TMPDIR="/tmp/exim.$(date +%s%N)"
+  mkdir -p "$TMPDIR/exim"
+  cp -r ./exim/* "$TMPDIR/exim/"
+ 
+  # Obtener hostname remoto
+  hostname_full=$(ssh "$SERVIDOR" 'cat /etc/hostname')
+  hostname_short=${hostname_full%%.*}
+  hostname_base=${hostname_short::-1}
+ 
+  # Reemplazar en el configure "server38" por el hostname
+  sed -i "s/server38/$hostname_base/g" "$TMPDIR/exim/configure"
+  sed -i "s/server38/$hostname_base/g" "$TMPDIR/exim/hostname"
+ 
+  # Copiar la carpeta temporal
+  scp -o BatchMode=yes -r "$TMPDIR"/exim/* "root@$SERVIDOR:${DESTINO_REMOTO}/" \
+  && echo "Contenido de exim copiado con éxito a $SERVIDOR" \
+  || {
+        echo "No se pudo copiar contenido a $SERVIDOR (sin clave SSH o inaccesible)"
+        FALLIDOS+=("$SERVIDOR")
+        rm -rf "$TMPDIR"
+        continue
+      }
+       
+  # Asegurar scripts ejecutables
+  ssh -o BatchMode=yes "root@$SERVIDOR" "chmod a+x ${DESTINO_REMOTO}/dnsbl/notifica_correo_ip.bsh" \
+  || {
+        echo "No se pudieron ajustar permisos en $SERVIDOR (sin clave SSH o inaccesible)"
+        FALLIDOS+=("$SERVIDOR")
+        rm -rf "$TMPDIR"
+        continue
+      }
+       
+  # Reiniciar Exim
+  ssh -o BatchMode=yes "$SERVIDOR" "
+    if systemctl is-active --quiet exim.service; then
+      echo \"Esperando 3 segundos antes de reiniciar Exim...\"
+      sleep 3
+      systemctl restart exim.service && echo \"[\$(hostname)] Exim reiniciado correctamente.\"
+    else
+      echo \"[\$(hostname)] Exim está detenido. No se reinicia.\"
+    fi
+  " || {
+        echo "No se pudo reiniciar Exim en $SERVIDOR"
+        FALLIDOS+=("$SERVIDOR")
+        rm -rf "$TMPDIR"
+        continue
+      }
+       
+  # Limpiar los directorios temporales
+  rm -rf "$TMPDIR"
+   
+  echo -e "\033[1;32mCompletado para $SERVIDOR\033[0m"
+done
+--------------------------------------------------------------------------------
+
+🖧 Compartidos Nube 
+ATENCION: No usan la nomenclatura a/b, solo necesitaria leer el $hostname y no editarlo luego
+ATENCION: Los compartidos nube no utilizan proxysql local asi que tienen nube y pass en el configure hide mysql_servers = xxx.xx.xx.xx/nubecompartida/services/AxeshaichohiW8uFoo5. Esto no debe ser cambiado hasta que se migren las cuentas de cloud de los mismos.
+
+No cambiar configure en los clouds hasta que no esten migrados con proxysql, consultar con entregabilidad.
+
+🔧 Rollback:
+Dejo un ejemplo de un script de rollback en caso de surgir alguna incidiencia
+
+--------------------------------------------------------------------------------
+rollback.sh
+#!/bin/bash
+## Script reverso: restaura los backups (/etc/exim.bkp) en los servidores
+## y reinicia el servicio Exim si está activo.
+ 
+# Lista de servidores destino
+SERVIDORES=(
+...
+)
+ 
+# Ruta remota
+DESTINO_REMOTO="/etc"
+ 
+for SERVIDOR in "${SERVIDORES[@]}"; do
+  echo -e "\033[1;33mRestaurando en servidor: $SERVIDOR\033[0m"
+ 
+  ssh -o BatchMode=yes "root@$SERVIDOR" "
+    if [ -d ${DESTINO_REMOTO}/exim.bkp ]; then
+      if [ -d ${DESTINO_REMOTO}/exim ]; then
+        rm -rf ${DESTINO_REMOTO}/exim
+        echo 'Se eliminó carpeta exim actual'
+      fi
+ 
+      mv ${DESTINO_REMOTO}/exim.bkp ${DESTINO_REMOTO}/exim
+      echo 'Se restauró exim desde backup'
+    else
+      echo 'No existe ${DESTINO_REMOTO}/exim.bkp en ${SERVIDOR}, no se pudo restaurar'
+    fi
+  "
+ 
+  # Reiniciar Exim si está activo
+  ssh -o BatchMode=yes "root@$SERVIDOR" '
+    if systemctl is-active --quiet exim.service; then
+      systemctl restart exim.service && echo "[$(hostname)] Exim reiniciado tras restauración."
+    else
+      echo "[$(hostname)] Exim está detenido. No se reinicia."
+    fi
+  '
+ 
+  echo -e "\033[1;32mRestauración completada en $SERVIDOR\033[0m"
+done
+----------------------------------------------------------------------------------------------------------------------------------------------------------------

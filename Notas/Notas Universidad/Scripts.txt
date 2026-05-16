@@ -1,0 +1,143 @@
+-------------------------------------
+Crear un script:
+-------------------------------------
+
+>Crear un archivo .sh con la siguiente primer linea, # para que tome los comentarios y !/bin/bash para que sea ejecutable
+#!/bin/bash
+
+>Echo - ostar un mensaje en la pantalla
+echo "Nico!"
+
+>Finalizar
+fi
+
+>Alias - permite que una cadena de palabras sea sustituida por una más corta (per). Unalias para remover este alias
+alias per=’/home/usuario/Descargas’
+unalias per
+
+>Declarar una variable
+VARIABLE="Ejemplo de variable"
+
+>Declarar una variable numerica
+declare –i num=12
+declare –x pi=3.14
+
+>Creamos un ciclo que asignará los números del 1 al 5 por cada “vuelta de ciclo”
+for contador in 1 2 3 4 5
+do
+
+>Imprimimos el actual valor de la variable contador, para lo cual utilizamos el $
+echo “$contador”
+
+-------------------------------------
+Estructuras de repeticion
+
+>If
+
+#!/bin/bash
+read -p "Introduce un valor: " VALOR
+If [ $VALOR -lt 5 ]; then
+echo "El valor es menor que 5"
+elif [ $VALOR -gt 5 ]; then
+echo “El valor es mayor que 5”
+else
+echo "El valor es 5"
+fi
+
+>Case - esac
+
+#!/bin/bash
+read -p "Introduce un valor: " VALOR
+case $VALOR in
+1) "Valor 1";;
+2) "Valor 2";;
+3) "Valor 3";;
+*) "Opción no contemplada"
+esac
+
+>While
+
+#!/bin/bash
+while [ "$VALOR" != 5 ]
+do
+read -p "Introduce un valor: " VALOR
+case $VALOR in
+1) "Valor 1";;
+2) "Valor 2";;
+3) "Valor 3";;
+*) "Opción con contemplada"
+esac
+done
+
+>For
+
+#!/bin/bash
+#realiza un recorrido en todos los elementos que estén en la ruta
+#y obtiene el momento de creación
+for VARIABLE in /home/developandsystem/scripts/*
+do
+stat --printf '%y'
+echo 
+done
+
+#!/bin/bash
+declare -a LISTA={"elemento1" "elemento2" "elemento3"}
+for i in ${LISTA[@]}
+do
+echo "$i"
+done
+
+-------------------------------------
+
+>Si el valor de contador es igual a 3
+if [$contador –eq 3]
+then
+
+>El break sale del ciclo for
+break
+fi
+done
+
+>Continue impide que se analize el resto del ciclo actual saltando a la siguiente vuelta, o sea que el valor 3 no se imprimirá.
+
+if [$contador –eq 3]
+then
+continue
+fi
+echo “$contador”
+done
+
+>Una expresion aritmetica se hace con el comando let
+
+let a=11
+let a=a+5
+a=16
+
+>Read permite ingresar una variable
+echo “Ingresá tu nombre y presioná ENTER”
+read nombre
+echo "Tu nombre es $nombre"
+
+-------------------------------------
+
+Expresiones con el comando test 
+-s → Devuelve 0 si el archivo existe y tiene un tamaño mayor que 0.
+-r → Devuelve 0 si el archivo existe y tiene permiso de lectura.
+-w → Devuelve 0 si el archivo existe y tiene permiso de escritura.
+-d → Devuelve 0 si la búsqueda pertenece a un directorio.
+
+Parámetros relacionados con las cadenas de texto:
+-z → Devuelve 0 si el número de caracteres de una cadena es igual 0.
+-n → Igual que el parámetro anterior con la diferencia de que comprueba que el tamaño de la cadena sea mayor que 0.
+    
+Parámetros relacionados con números:
+-lt → Menor que
+-le → Menor o igual que
+-gt → Mayor que
+-ge → Mayor o igual que
+-eq → Igual a
+-ne → Diferente a
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+

@@ -1,0 +1,256 @@
+----------------------------------------------------
+Alta servidor Puppeteer
+----------------------------------------------------
+
+1- IMPORTANTE: seguir manualmente el script 
+http://gitlab.x:81/deploy_puppeteer_es
+
+2- Ingresar a los servidores y actualizar el sistema operativo con el script
+scp update-generico-el9.sh root@servidor:/root
+bash update-generico-el9.sh
+dnf clean all
+
+./uname.sh
+
+3- Establecer nombre y Configurar nmcli para que tome en nombre de la bkl0 - Crear 60-net.rules y reemplazarle la MAC address
+
+hostnamectl set-hostname puppeteer-es01b
+hostnamectl set-hostname puppeteer-es01b.dominio.com
+
+nmcli device
+nmcli connection delete bkl0
+nmcli connection delete Wired\ connection\ 1
+nmcli connection add con-name bkl0 ifname eth0 type ethernet
+nmcli connection modify bkl0 ipv4.addresses xxx.xx.xx.xx/16
+nmcli connection modify bkl0 ipv4.method manual
+nmcli connection modify bkl0 ipv4.gateway xxx.xx.xx.xx
+nmcli connection modify bkl0 ipv4.dns "xxx.xx.xx.xx"
+nmcli connection modify bkl0 ipv4.dns-search linux.backend
+
+mcedit /etc/udev/rules.d/60-net.rules
+mcedit /etc/udev/rules.d/60-net.rules
+
+
+
+DEVICE  TYPE      STATE                   CONNECTION 
+bkl0    ethernet  conectado               bkl0       
+lo      loopback  connected (externally)  lo  
+
+4- Se agrega el usuario puppeteer
+
+adduser pupetteer
+cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 15 | head -n 1 | passwd puppeteer --stdin
+mkdir -p /home/puppeteer/public_html
+mkdir -p /home/puppeteer/public_html/logs
+chown -R puppeteer.puppeteer /home/puppeteer/public_html
+
+5- Instalar Node y dependencias
+
+wget https://rpm.nodesource.com/setup_22.x -O add_repo_nodejs.sh && chmod +x add_repo_nodejs.sh
+./add_repo_nodejs.sh
+dnf install nodejs -y
+node --version
+npm config set registry http://registry.npmjs.org/
+npm install -g npm
+npm install -g puppeteer@latest --unsafe-perm=true
+npm ls -g
+npm install -g pm2@latest
+npm ls -g
+npm install -g express@latest
+npm ls -g
+logout
+su -c "cd ~ && npm link puppeteer" puppeteer
+
+6- Instalar Nginx y crear los archivos con el contenido del script
+
+dnf install -y nginx
+touch /etc/nginx/conf.d/puppeteer-es01.linux.backend.conf
+mcedit /etc/nginx/conf.d/puppeteer-es01.linux.backend.conf
+touch /etc/nginx/proxy_params
+mcedit /etc/nginx/proxy_params
+
+echo 'net.ipv4.conf.all.rp_filter = 0' > /etc/sysctl.d/98-balancer.conf
+echo 'net.ipv4.conf.default.rp_filter = 0' >> /etc/sysctl.d/98-balancer.conf
+echo 'net.ipv4.conf.all.arp_ignore = 3' >> /etc/sysctl.d/98-balancer.conf
+echo 'net.ipv4.conf.all.arp_announce = 2' >> /etc/sysctl.d/98-balancer.conf
+reboot
+
+7- Instalar Keepalive ipvsadm - Configurar collectd
+
+dnf install -y keepalived ipvsadm
+
+touch /etc/collectd.d/custom.conf
+mcedit /etc/collectd.d/custom.conf
+systemctl restart collectd.service 
+journalctl -u collectd.service 
+dnf install collectd-disk
+
+mcedit /etc/keepalived/keepalived.conf 
+mcedit /etc/keepalived/notify.sh
+chmod +x /etc/keepalived/notify.sh
+systemctl restart keepalived.service 
+
+8- Crear app.js
+cat /home/puppeteer/public_html/app.js
+
+9- Instalar librerias restantes
+dnf install libnl* popt* -y
+dnf install curl gcc openssl-devel libnl3-devel net-snmp-devel
+
+El RoundRobin 1 & 1 - Es ejecutado por el keepalived, no por el nginx
+
+10- Instalar librerias 
+
+dnf install -y google-noto-sans* --skip-broken --best --allowerasing
+
+
+11- Downgrade de Node 22 a node 16
+
+node -v
+npm -v
+
+sudo dnf remove nodejs
+
+Cambiar el repo
+
+wget https://rpm.nodesource.com/setup_16.x -O add_repo_nodejs.sh && chmod +x add_repo_nodejs.sh
+./add_repo_nodejs.sh
+
+sudo dnf --nogpgcheck install nodejs
+
+sudo dnf install nodejs
+
+node -v
+
+12- Downgrade de Puppeteer
+
+npm uninstall -g puppeteer
+npm install -g puppeteer@19.2.0
+npm list -g puppeteer
+
+
+------------------------------------------------------
+node -v
+v16.20.2  -- 16.20.2
+
+npm list puppeteer
+puppeteer@19.2.0  -- 
+
+sudo nano /etc/dnf/dnf.conf
+exclude=chromium
+
+------------------------------------------------------
+Instalar Chromium viejo
+
+wget https://yum.oracle.com/repo/OracleLinux/OL8/developer/EPEL/x86_64/getPackage/chromium-headless-110.0.5481.177-1.el8.x86_64.rpm
+wget https://yum.oracle.com/repo/OracleLinux/OL8/developer/EPEL/x86_64/getPackage/chromium-common-110.0.5481.177-1.el8.x86_64.rpm
+
+
+sudo dnf install ./chromium-common-110.0.5481.177-1.el8.x86_64.rpm
+sudo dnf install ./chromium-headless-110.0.5481.177-1.el8.x86_64.rpm
+
+rpm -qa | grep chromium
+
+------------------------------------------------------
+
+Paquetes reeplazados en Alma 9
+
+
+>dejavu-fonts-common                       -- se reemplaza por -- dejavu-sans-fonts
+https://almalinux.pkgs.org/9/almalinux-baseos-aarch64/dejavu-sans-fonts-2.37-18.el9.noarch.rpm.html
+
+>google-noto-sans-syriac-eastern-fonts	   -- se reemplaza por -- google-noto-sans-syriac-fonts
+>google-noto-sans-syriac-estrangela-fonts  -- se reemplaza por -- google-noto-sans-syriac-fonts
+>google-noto-sans-syriac-western-fonts     -- se reemplaza por -- google-noto-sans-syriac-fonts
+https://almalinux.pkgs.org/9/almalinux-crb-x86_64/google-noto-sans-syriac-fonts-20201206-4.el9.noarch.rpm.html
+
+>google-noto-sans-tibetan-fonts            -- se reemplaza por -- google-noto-serif-tibetan-fonts
+https://almalinux.pkgs.org/9/almalinux-crb-aarch64/google-noto-serif-tibetan-fonts-20201206-4.el9.noarch.rpm.html
+
+>google-noto-sans-ui-fonts  -- No existe en alma9
+
+
+------------------------------------------------------
+
+wget https://rpm.nodesource.com/setup_16.x -O add_repo_nodejs.sh && chmod +x add_repo_nodejs.sh
+
+------------------------------------------------------
+Ver versiones
+
+node -v
+
+npm -v
+
+cd /home/puppeteer/tr-puppeteer
+npm list puppeteer
+cat /home/puppeteer/tr-puppeteer/node_modules/puppeteer/package.json | grep version
+  "version": "19.4.1",
+
+cd /home/puppeteer/tr-puppeteer  
+rpm -qa | grep chromium
+chromium-common-131.0.6778.204-1.el9.x86_64
+chromium-headless-131.0.6778.204-1.el9.x86_64
+
+------------------------------------------------------
+
+node -v
+v16.20.2
+
+npm -v
+8.19.4
+
+npm list puppeteer
+tr-puppeteer@1.0.0 /home/puppeteer/tr-puppeteer
+└── puppeteer@19.4.1
+
+rpm -qa | grep chromium
+chromium-common-131.0.6778.204-1.el9.x86_64
+chromium-headless-131.0.6778.204-1.el9.x86_64
+
+------------------------------------------------------
+
+Carpetas a restaurar:
+
+which npm
+/usr/bin/npm
+
+which node
+/usr/bin/node
+
+/usr/lib/node_modules
+
+------------------------------------------------------
+Actualizados en el b:
+
+curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo bash -
+dnf install nodejs
+node
+v22.17.0
+
+npm install -g npm@10.9.2
+npm
+v10.9.2
+
+cd /home/puppeteer
+npm install puppeteer@24.3.0 --save
+npm list puppeteer
+v24.3
+
+wget https://yum.oracle.com/repo/OracleLinux/OL8/developer/EPEL/x86_64/getPackage/chromium-headless-133.0.6943.98-1.el8.x86_64.rpm
+wget https://yum.oracle.com/repo/OracleLinux/OL8/developer/EPEL/x86_64/getPackage/chromium-common-133.0.6943.98-1.el8.x86_64.rpm
+
+
+dnf install ./chromium-common-133.0.6943.98-1.el8.x86_64.rpm --allowerasing
+
+dnf install ./chromium-headless-133.0.6943.98-1.el8.x86_64.rpm --allowerasing
+
+
+agregar mensaje en la colsona de login
+------------------------------------------------------
+
+
+Instalar collectd:
+
+http://docs-iti.dat/display/MON/Instalacion+de+collectd
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

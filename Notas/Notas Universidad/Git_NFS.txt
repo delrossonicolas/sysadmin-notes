@@ -1,0 +1,245 @@
+---------------------------------------------------------------
+INSTALAR GIT
+---------------------------------------------------------------
+1- apt-get install git
+2- add-apt-repository ppa:git-core/ppa
+3- apt update
+4- apt install git
+------------------
+
+git init nombredelrepositorio (inicializa un proyecto (inicializar en la carpeta donde se va a descargar con pull y en la carpeta master))
+git add . (gregamos el rep a git (agrega todo))
+git commit -m "cambio que ejecutamos" (guardamos los cambios (guardar y comentar))
+git branch (listamos las ramas)  
+git branch nombre (Creamos una rama )
+git checkout nombrederama (pasamos de ramas) 
+git branch -d (eliminamos rama) 
+git log (para ver los logs)
+git checkout -b otrarama  (creamos una rama y nos ponemos en la misma)
+git clone https://github.com/caosbinario/docker (ejemplo de Descarga)
+
+------------------
+Crear usuario git 
+-----------------
+(solo se permite un usuario, no tiene que ser el usuario github)
+
+git config --global user.name "John Doe"
+git config --global user.email johndoe@example.com
+
+-------------------------
+Ayuda git
+-------------------------
+git help config 
+git config --help 
+man git-config 
+
+---------------------------------------------
+PUSH: sube los archivos (es necesario tener un token en github) 
+
+git remote add origin git@github.com:apellusuario/Proyecto2.git
+git branch -M main (main es el nombre de la branch principal)
+git push -u origin main (man es el nombre de la branch principal)
+(te va a pedir usuario y contraseña)
+user: usuariogithub
+pass: TOKEN
+
+ 
+PULL: descarga los archivos github en otro directorio
+
+por ej. los archivos estan el proyecto/ y los queremos mover a proyecto2/
+git init  (se inicializa el github en proyecto 2)
+git pull proyecto/ (posicionado en proyecto2/)
+
+
+MERGE: univ una branch con la branch prinicipal 
+
+git merge ramasecundaria (une todo al main)
+
+---------------------------------------------
+INSTALAR APACHE INTEGRADO A GIT
+---------------------------------------------
+1- sudo apt-get update
+2- sudo apt-get install git-core
+3- sudo apt-get install apache2
+
+Creamos un nuevo repositorio de Git en la raiz de documentos (/var/wwww/html)
+
+4- cd /var/www/html
+5- mkdir git
+6- cd git/
+7- mkdir reponame
+8- cd reponame/
+9- git init --bare 
+10- chgrp -R www-data /var/www/html/git
+11- chown -R www-data /var/www/html/git
+12- Editar el archivo llamado config y añadir lo siguiente (/var/www/html/git/reponame/config) 
+
+nano config 
+
+ [http]
+    receivepack = true
+
+13- Crear un script que verifique nombre de usuario y contraseña con el siguiente contenido:
+
+cd /usr/local/bin
+touch auth.sh
+chmod 755 auth.sh
+nano auth.sh
+
+#! /bin/bash
+read user
+read password
+
+if [[ ("$user" = "hello") && ("$password" = "world") ]]; then
+  exit 0
+else
+  exit 1
+fi
+
+14- Instalar la siguiente librería de apache
+apt-get install libapache2-mod-authnz-external
+
+15- Asegurarnos de que el modulo este actualizado
+a2enmod authnz_external
+
+-------------------------
+Instalar apache
+-------------------------
+sudo apt-get install apache2
+apt-get install libapache2-mod-authnz-external
+a2enmod authnz_external
+
+
+16- Crear un archivo de configuracion de apache con el siguiente contenido
+
+cd /etc/apache2/
+touch httpd.conf
+nano httpd.conf
+
+----------------------------------------------
+<VirtualHost *:80>
+
+    SetEnv GIT_PROJECT_ROOT /var/www/html/git
+    SetEnv GIT_HTTP_EXPORT_ALL
+    SetEnv REMOTE_USER=$REDIRECT_REMOTE_USER
+
+    DocumentRoot /var/www/html
+    <Directory "/var/www/html">
+        Options All Includes Indexes FollowSymLinks
+        Order allow,deny
+        Allow from all
+        AllowOverride All
+    </Directory>
+
+
+    ScriptAliasMatch \
+        "(?x)^/git/(.*/(HEAD | \
+        info/refs | \
+        objects/(info/[^/]+ | \
+        [0-9a-f]{2}/[0-9a-f]{38} | \
+        pack/pack-[0-9a-f]{40}\.(pack|idx)) | \
+        git-(upload|receive)-pack))$" \
+        "/usr/lib/git-core/git-http-backend/$1"
+
+    Alias /git /var/www/html/git
+
+    <Directory /usr/lib/git-core>
+        Options +ExecCGI -MultiViews +SymLinksIfOwnerMatch
+        AuthType Basic
+        AuthName "Restricted"
+        AuthBasicProvider external
+        AuthExternal auth
+        require valid-user
+    </Directory>
+
+    <Directory /var/www/html/git>
+        Options +ExecCGI +Indexes +FollowSymLinks
+        Allowoverride None
+        AuthType Basic
+        AuthName "Restricted"
+        AuthBasicProvider external
+        AuthExternal auth
+        require valid-user
+    </Directory>
+
+    AddExternalAuth auth /usr/local/bin/auth.sh
+    SetExternalAuthMethod auth pipe
+
+</VirtualHost>
+----------------------------------------------
+
+17- Abrir y editar el archivo /etc/apache2/apache2.conf  
+
+vi /etc/apache2/apache2.conf
+
+Comentar esta línea al final del documento:
+# IncludeOptional sites-enabled/*.conf
+
+Agregar la siguiente línea:
+Include /etc/apache2/httpd.conf
+
+18- Habilitar mod_cgi, mod_alias y mod_env
+
+a2enmod cgi alias env
+
+19- Actualizar el repositorio y reiniciar apache
+
+cd /var/www/html/git/reponame
+git update-server-info
+service apache2 restart
+
+20- /etc/init.d/apache2 restart (reiniciar apache2)
+
+-----------------------------------
+Desde otro ordenador
+-----------------------------------
+
+21- Inicializamos un repositorio
+git init    
+
+22- creamos un archivo 
+vi index.html
+
+22- Agregamos los campos al repositorio
+git add .
+
+23- Commitiamos los cambios
+git commit -m “nombre del cambio”
+
+24- Lo subimos al servidor
+git push -u http://xxxx.xxxx.xxx/git/reponame
+
+25- Desde otra carpeta clonamos
+git clone http://xxxx.xxxx.xxx/git/reponame
+
+
+26- Modificar el repositorio
+touch test.txt
+git add test.txt 
+git commit -m “test commit”
+
+
+27- Subir el repositorio
+git push -u origin master
+
+----------------------------------
+Ver logs de Apache
+-----------------------------------
+
+cd /var/log/apache2
+cat error.log
+
+openssl s_client -connect toba3-dev.universidad.edu.ar:443
+curl toba3-dev.universidad.edu.ar:443
+ 
+------------
+ERROR - GIT
+------------
+
+Error 1) error: unable to rewind rpc post data - try increasing http.postBuffer
+
+Solucion 1) git config --global http.postBuffer 2097152000
+
+
+ 
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

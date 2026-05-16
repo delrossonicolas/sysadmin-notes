@@ -1,0 +1,229 @@
+-----------------------------------
+Desplegar Huarpe 
+-----------------------------------
+
+https://expedientes.siu.edu.ar/docs/arai/#registrar-huarpe-como-service-provider
+
+Archivos de configuracion: huarpe.yml - huarpe_alias.conf - huarpet_parameters.yml - huarpe_bundles.yml
+
+1- Ingresar a Araí-Usuarios (user admin y password seteado anteriormente)
+
+2- Dirigirse al item Aplicaciones y registrar Huarpe como una aplicacion 
+
+3- Presionar el botón Agregar +
+
+4- Completar de la siguiente manera el tab Datos Generales
+
+AppUniqueId(*): 
+Url(*): https://test-univ.universidad.edu.ar
+Nombre(*): Huarpe
+
+Tildar:
+Acceso Irrestricto 
+Activa
+
+5- Completar de la siguiente manera en SAML
+
+Entity ID(*) : https://test-univ.universidad.edu.ar/saml/metadata
+Assertion Consumer Serv.(*): https://test-univ.universidad.edu.ar/saml/acs
+Single Logout Serv. (*): https://test-univ.universidad.edu.ar/saml/logout
+
+6- Guardar
+
+Asignarle los permismos de las aplicaciones a los distintos usuarios ej. adminsudocu
+
+https://expedientes.siu.edu.ar/docs/sudocu/#crear-usuario-admin-de-sudocu-en-ara%C3%AD-usuarios
+
+Desplegar el stack:
+
+docker stack deploy --with-registry-auth -c huarpe.yml huarpe
+
+----------------------
+Cambiar Imagenes
+---------------------
+
+Para añadir imagenes al docker:
+
+1- Se debe buscar el nombre de la imagen jpg a cambiar en la pagina y buscarla en el docker
+
+2- Copiarla al docker
+docker cp   img_meta.png   huarpe_webapp.1.xipsjnpjw8qmde8wcudl5hwjg:/usr/local/app/web/img/logos/
+
+3- Ingresar al docker
+docker exec -it usuarios_api.1.pjdsdoptyae8fw5iw5rxfigk2 /bin/bash
+
+4- Buscar en el docker 
+find . -iname *.png
+
+5- Renombrar y reemplazar la imagen:
+mv logo-blanco-y-negro.png logo-blanco-y-negro.png.bk
+mv img_meta.png logo-blanco-y-negro.png
+
+Tener en cuenta que si el ID del docker no esta en el nodo master, puede estar en un nodo Worker.
+
+Si queremos pasar una imagen a varios contenedores al mismo tiempo con un script: 
+
+Buscar en Archivos_prod
+--images.sh--
+
+Si las imagenes en el huarpe no cargan, revisar las rutas donde se alojan las imagenes en Usuarios.yml
+ - /mnt/arai/resources/resources:/usr/local/app/resources
+
+------------------------------------
+Cambiar un password
+------------------------------------
+
+1- Primero tengo que bajar los servicios que usen el secreto ejemplo: docker stack rm docs
+o docker service rm crear_db_docs_crear-base
+
+2- En secrets.sh
+Cambiar el pass de docs_api_pass, docs_repo_pass, docs_db_pass
+
+3- Luego eliminar el secreto precargado:
+(docker secret ls)
+
+4- Luego si eliminar el secreto: 
+docker secret rm docs_api_pass
+docker secret rm docs_repo_pass
+
+5- DB:
+docker secret rm docs_db_pass
+
+6- Luego, una vez cargado los passwords en el archivo (en este caso secrets.sh)
+Correrlo: ./secrets.sh
+Esto actualizará los que eliminamos, y los existentes los conservará
+
+------------
+Password sudocu
+------------
+
+Los passwords de sucodu se crean con:
+docker secret create sudocu-api-server ./sudocu-api-server-secret.json
+
+Entonces si quiero cambiar el pass en el archivo sudocu-api-server-secret.json
+Luego debo eliminar el secret con: docker secret rm sudocu-api-server
+Y Luego ejecuto de nuevo:
+docker secret create sudocu-api-server ./sudocu-api-server-secret.json
+Y luego deploy
+
+------------------------------------
+Crear base de datos sudocu y arai_docuemntos2 con su respectivo usuario y privilegio
+------------------------------------
+
+1- create database sudocu;
+
+2- create database arai_documentos2; 
+
+3- Crear usuarios:
+
+CREATE USER sudocu WITH ENCRYPTED PASSWORD 'mipass';
+GRANT ALL PRIVILEGES ON DATABASE sudocu TO miusuario;
+
+CREATE USER arai_documentos2 WITH ENCRYPTED PASSWORD 'mipass';
+GRANT ALL PRIVILEGES ON DATABASE arai_docuemntos2 TO miusuario;
+
+4- Exportar la base de datos de arai_documentos2
+pg_dump -h 127.0.0.1 -U postgres arai_documentos2 > arai_documentos2.sql
+pg_dump -h 127.0.0.1 -U postgres nuxeo > nuxeo.sql
+
+5- Importar la base de datos de arai_docuemntos2
+psql -d sudocu -h 127.0.0.1 -U postgres < sudocu.01042022.sql
+psql -d nuxeo -h 127.0.0.1 -U postgres < nuxeo.sql
+
+6- Con pgAdmin abrir la base de datos de EEI y reemplazar:
+Base de datos: Usuarios > Schemas > Usuarios > Tables > aplicaciones 
+
+id_sudocu test original
+id
+
+old
+idold
+
+select * from usuarios.aplicaciones;
+select * from usuarios.conector_saml;
+
+ALTER TABLE usuarios.aplicaciones DISABLE TRIGGER ALL;
+ALTER TABLE usuarios.conector_saml DISABLE TRIGGER ALL;
+
+update usuarios.aplicaciones set app_unique_id='id'
+where app_unique_id='idold';
+
+update usuarios.conector_saml set app_unique_id='id'
+where app_unique_id='idold';
+
+ALTER TABLE usuarios.aplicaciones ENABLE TRIGGER ALL;
+ALTER TABLE usuarios.conector_saml ENABLE TRIGGER ALL;
+
+
+7- Eliminar todos los secrets de "secrets.sh":
+
+docker secret rm usuarios_db_pass
+docker secret rm usuarios_ldap_admin_pass
+docker secret rm usuarios_ldap_config_pass
+docker secret rm usuarios_pass_salt
+docker secret rm usuarios_idp_simplesaml_admin
+docker secret rm usuarios_api_users
+docker secret rm docs_api_pass
+docker secret rm docs_db_pass
+docker secret rm docs_repo_pass
+docker secret rm docs_conexion_usuarios
+docker secret rm docs_conexion_sudocu
+docker secret rm huarpe_secret
+docker secret rm huarpe_usuarios_pass
+
+8- Ejecutar los secrets nuevamente:
+
+./secrets.sh
+
+Reemplazar:
+sed -i 's/uunn.local/test-univ.universidad.edu.ar/g' \
+   config/config-api-server.json \
+   config/config-sudocu-login.json \
+   config/config-sudocu-mpd.json \
+
+------------------------------------
+Actualizar Huarpe de 2.2.1 a 3.0.1
+------------------------------------
+
+https://hub.siu.edu.ar/siu/expedientes/-/commit/c356a24744e764896d809998421e4091be7fdd3e
+
+Borrar los archivos: huarpe_alias.conf / huarpe_bundles.conf / huarpet_parameters.conf
+
+Crear los archivos: huarpe.env y modificar el archivo huarpe.yml cambiando la version de 2.2.1 a 3.0.1
+
+-- Buscar en Archivos_prod  huarpe.env y huarpe.yml --
+
+Copiar su formato y modificarlo
+
+------------------------------------
+ Captcha - Recaptcha
+------------------------------------
+
+La configuracion de captcha esta en usuarios.env
+SEGURIDAD_RECAPTCHA_SITIO y SEGURIDAD_RECAPTCHA_CLAVE se cambian con un codigo de recaptcha de google
+
+Si la contraseña del usuario admin es invalida por muchos intentos, bajar el stack y crear una nueva con 
+
+ADMIN_PASS=toba123456 docker stack deploy \
+    --with-registry-auth \
+    -c util/usuarios_crear_admin.yml \
+    boot
+
+docker stack deploy --with-registry-auth -c usuarios.yml usuarios
+
+------------------------------------
+Recuperar el mail de configuracion - Recupero de contraseña 
+------------------------------------
+
+Copiar tal cual esta el archivo usuarios.env en Archivos_prod, no cambiar los mails de configuracion ya que afecta el servicio de SMTP del la universidad
+
+borrar el stack de usuarios y huarpe y tirar:
+
+ADMIN_PASS=passwerd docker stack deploy \
+    --with-registry-auth \
+    -c util/usuarios_crear_admin.yml \
+    boot
+
+Volver a deployar huarpe y usuarios
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

@@ -1,0 +1,182 @@
+--------------------------------------------------------------------------------
+Pase de Legacy a Uefi - Clonar SDA - Solo se hace con sda
+-------------------------------------------------------------------------------- 
+
+Verificar si sda es legacy o uefi
+
+lsblk
+
+Legacy:
+
+├─sda1           8:1    0   476M  0 part /boot
+├─sda3           8:3    0  18,6G  0 part /
+
+
+Uefi:
+
+├─sda1      8:1    0   200M  0 part /boot/efi
+├─sda4      8:4    0  18,6G  0 part /
+
+
+
+Placas con conflicto: Asrock industrial, serie z 590 690 790
+Los legacy (server50 para abajo) no reconocen la placa de red
+
+
+Pedir a noc que se cambie la mother, un disco nuevo a noc y conectarlo al servidor
+
+Una vez se tienen los dos discos disponibles montamos el / de cada uno, identificando el dir raiz en la partición que corresponda según sea legacy o uefi.
+
+Entramos al finnix
+
+Cual es el disco nuevo?
+Verificamos los dos con
+
+ lsblk -o +MODEL,HCTL,SERIAL /dev/sdc
+
+smartctl -a /dev/sda
+o
+smartctl -a /dev/sda | grep Power_On_Hours
+smartctl -a /dev/sdb
+smartctl -a /dev/sdb | grep Power_On_Hours
+
+smartctl -a -d sat /dev/sdh | grep Power_On_Hours
+
+root@0:~# mkdir -p /mnt/original
+root@0:~# mkdir -p /mnt/nuevo
+root@0:~#
+root@0:~# mount /dev/sdb4 /mnt/nuevo
+root@0:~# mount /dev/sda3 /mnt/original
+root@0:~#
+root@0:~# lsblk
+NAME   MAJ:MIN RM   SIZE RO TYPE MOUNTPOINTS
+loop0    7:0    0 407.9M  1 loop /usr/lib/live/mount/rootfs/filesystem.squashfs
+                                 /run/live/rootfs/filesystem.squashfs
+sda      8:0    0 223.6G  0 disk
+|-sda1   8:1    0   476M  0 part
+|-sda2   8:2    0     7G  0 part
+|-sda3   8:3    0  18.6G  0 part /mnt/original
+|-sda4   8:4    0     1K  0 part
+|-sda5   8:5    0  57.7G  0 part
+`-sda6   8:6    0 139.8G  0 part
+sdb      8:16   0 223.6G  0 disk
+|-sdb1   8:17   0   200M  0 part
+|-sdb2   8:18   0   476M  0 part
+|-sdb3   8:19   0     7G  0 part
+|-sdb4   8:20   0  18.6G  0 part /mnt/nuevo
+|-sdb5   8:21   0  57.8G  0 part
+`-sdb6   8:22   0 139.1G  0 part
+sdc      8:32   0 223.6G  0 disk
+|-sdserver   8:33   0 111.8G  0 part
+`-sdserver   8:34   0    32M  0 part
+zram0  252:0    0   1.7G  0 disk [SWAP]
+
+
+Una vez montados hacemos rsync
+rsync -avHSAX --exclude={"/boot/*","/dev/*","/lost+found","/media/*","/mnt/*","/proc/*","/run/*","/sys/*","/tmp/*","/home/*","/Mails/*","/opt/*","/var/spool/exim/*","/etc/fstab"} /mnt/original/ /mnt/nuevo/
+
+
+si da error de peprmisos
+chattr -i /mnt/nuevo/root/.ssh/allowed-commands.sh 
+
+
+Dura 5 min. 
+
+umount /mnt/original
+umount /mnt/nuevo
+
+Etiquetar y guardar el original.
+
+Luego apagamos finnix y pedimos que coloquen el disco nuevo en el server y verifiquen que arranque, luego llevar al rack
+
+Una vez en el rack, verificar todas las placas de red, que drbd sincronice, y regenerar el recurso sda5 ya que el disco es nuevo
+
+
+
+ifconfig -a
+lspci
+mcedit /etc/udev/rules.d/60-net.rules 
+
+
+Ahora hay que actualizar el id del disco en la flashcahe si es que tiene
+ll /dev/disk/by-id/ | grep sda
+cat /etc/flashcache.cfg
+
+drbdadm -v down sda5
+drbdadm -v create-md sda5
+drbdadm -v up sda5
+
+
+
+Por ultimo revisamos el /etc/fstab del orto compartido y lo adaptamos según corresponda, revisar que en el primer mfsmount cerca del final hay un plantiya a reemplazar
+
+Los fstab se dejan iguales menos por la parte de 
+	
+/dev/sda1             /boot/efi   
+
+drbdadm status
+ll /dev/disk/by-id/ | grep sda
+mcedit /etc/flashcache.cfg 
+mcedit /etc/fstab
+ifconfig 
+for iface in $(ls /sys/class/net/); do echo "$iface: $(readlink /sys/class/net/$iface/device)"; done
+
+cambiar particion 6 
+----------------------------------------
+
+Crear swap SWAP
+
+mkswap /dev/sda3
+swapon /dev/sda3
+lsblk -f
+
+
+Si se ven dos placas de red o tres y las otras no, el problema puede estar en el calbe utp. Que las ajusten y las vuelvan a poner
+
+
+grub2-install --target=x86_64-efi...
+
+----------------------------------------
+
+Para cambiar el disco  sda  de forma preventiva, armar un issue a noc y ellos lo clonan.
+
+Ahora hay que actualizar el id del disco en la flashcahe si es que tiene
+ll /dev/disk/by-id/ | grep sda
+cat /etc/flashcache.cfg
+
+BUSCAR EL DE ARRIBA (NO EL WWNUMBER) EL IDENTIFICADOR
+
+lrwxrwxrwx 1 root root 10 may 12 15:19 ata-ID-part6 -> ../../sda6
+
+----------------------------------------
+
+Si queda en dracut
+
+ejecutar blkid y sacar el id
+
+sda="165764a2e5469add"
+
+----------------------------------------
+
+ojo al copiar o armar el /etc/fstab porque por mas que sea UEFI se usa "/dev/mapper/mail" salvo en los compartidos nuevos con ssd que no usan flashcache, tambien cuidado de que compartido lo copian en caso de hacerlo porque el server41b es xfs y tiene un fstab de ext4
+
+[root@server11a ~] # lsblk -f
+NAME      FSTYPE      LABEL UUID                                   MOUNTPOINT
+sda                                                                
+├─sda1    vfat        EFI   7239-B382                              /boot/efi -------< BOOT / EFI TIENE QUE SER /dev/sda1             /boot/efi   EN FSTAB Y /dev/mapper/VG3-mail
+
+
+server11a uefi (tiene que queda boot/efi)
+
+server11b legacy
+
+----------------------------------------
+
+sda corrupto
+
+
+fsck.ext4 -fCy /dev/sda4 
+fsck.ext4 -fCy /dev/sda6
+fsck.ext4 -fCy /dev/sda47 
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------

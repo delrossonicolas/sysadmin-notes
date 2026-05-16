@@ -1,0 +1,373 @@
+
+--------------------------------------------------------------------
+
+Comandos para instalar en VM-universidad-Portaluniversidad
+
+apt-get install mc
+vi .profile
+passwd
+vi /etc/apt/sources.list
+dpkg-reconfigure dash
+service apparmor stop
+update-rc.d -f apparmor remove
+apt-get remove apparmor apparmor-utils
+apt-get -y install ntp
+apt-get autoremoce
+apt-get autoremove
+service sendmail stop; update-rc.d -f sendmail remove
+apt-get -y install postfix postfix-mysql postfix-doc mariadb-client mariadb-server openssl getmail4 rkhunter binutils dovecot-imapd dovecot-pop3d dovecot-mysql dovecot-sieve sudo patch
+vi /etc/postfix/master.cf
+service postfix restart
+vi /etc/mysql/mariadb.conf.d/50-server.cnf
+mysql_secure_installation
+echo "update mysql.user set plugin = 'mysql_native_password' where user='root';" | mysql -u root
+vi /etc/mysql/debian.cnf
+vi /etc/security/limits.conf
+mkdir /etc/systemd/system/mysql.service.d/
+vi /etc/systemd/system/mysql.service.d/limits.conf
+systemctl daemon-reload
+service mariadb restart
+netstat -tap | grep mysql
+mysql -u root -p
+mysql -u root
+mysql -u root -p
+apt-get -y install amavisd-new spamassassin clamav clamav-daemon unzip bzip2 arj nomarch lzop cabextract apt-listchanges libnet-ldap-perl libauthen-sasl-perl clamav-docs daemon libio-string-perl libio-socket-ssl-perl libnet-ident-perl zip libnet-dns-perl postgrey
+service spamassassin stop
+update-rc.d -f spamassassin remove
+apt-get -y install apache2 apache2-doc apache2-utils libapache2-mod-php php7.4 php7.4-common php7.4-gd php7.4-mysql php7.4-imap phpmyadmin php7.4-cli php7.4-cgi libapache2-mod-fcgid apache2-suexec-pristine php-pear libruby libapache2-mod-python php7.4-curl php7.4-intl php7.4-pspell php7.4-sqlite3 php7.4-tidy php7.4-xmlrpc php7.4-xsl memcached php-memcache php-imagick php7.4-zip php7.4-mbstring php-soap php7.4-soap php7.4-opcache php-apcu php7.4-fpm libapache2-reload-perl
+a2enmod suexec rewrite ssl actions include cgi alias proxy_fcgi
+a2enmod dav_fs dav auth_digest headers
+
+--------------------------------------------------------------------
+
+Pagina universidad maquina - copiar del campus (VM-universidad-Portal universidad)
+
+1er maquina -> DB y Redis
+
+2da maquina -> Web1
+
+3er maquina -> Web2
+
+4ta maquina -> GFS
+
+
+Comando de configuracion :
+
+apt-get install php8.1-bz2 php8.1-cgi php8.1-curl php8.1-fpm php8.1-imap php8.1-intl php8.1-mbstring php8.1-pspell php8.1-sqlite3 php8.1-tidy php8.1-zip phpmyadmin php8.1-xmlrpc
+
+--------------------------------------------------------------------
+
+Editar user.ini
+
+Crear el usuario para cadai IP que vaya a acceder 
+
+CREATE USER 'myuser'@'%' IDENTIFIED BY PASSWORD '*HASH';
+GRANT ALL ON mydb.* TO 'myuser'@'%';
+
+Copiamos la carpeta wp-content a el gfs y la compartimos
+
+
+--------------------------------------------------------------------
+Probar redis desde un servidor remoto
+
+En el archivo redis.conf se pone la IP DEL REDIS, y 127.0.0.1, no las ip que se conectan
+redis-cli
+MONITOR
+redis-cli -h xxx.xx.xx.xx -p 6379
+
+---------------------------------
+
+El cambio de DNS, por ejemplo apuntar a una nueva IP puede demorar hasta 5 horas
+
+
+---------------------------------
+
+Portal universidad
+
+Test está conformado por 4 VMs, 2 corresponden al código fuente de wordpress(web), otra a la DB y la última al GFS.
+
+DB - Redis
+La VM de la DB y redis tiene mysql version 8.0.36, la base de datos tiene las mismas credenciales que tenía el sitio, por el momento no se configuró ninguna directiva extra. Crear usuario y base de datos.
+Solo para test, en la tabla options cambiar la url para evitar inconsistencias.
+Crear el usuario para cada IP que vaya a acceder y otorgar permisos al usuario: 
+CREATE USER 'myuser'@'%' IDENTIFIED BY PASSWORD '*HASH';
+GRANT ALL ON mydb.* TO 'myuser'@'%';
+
+Probar con:
+mysql -h xxx.xx.xx.xx -u c1_www -p
+FLUSH PRIVILEGES;
+
+Configurar y comparar el archivo redis.conf (Importante!! Agregar la IP correspondiente a la máquina donde se encuentra instalado el redis)
+bind 127.0.0.1 xxx.xx.xx.xx
+
+Se pueden monitorear las conexiones entrantes a redis con redis-cli, es necesario instalarlo:
+apt-get install redis-cli
+redis-cli
+MONITOR
+redis-cli -h xxx.xx.xx.xx -p 6379
+
+
+
+GFS
+La máquina donde se encuentra el GFS cuenta con la configuración del protocolo nfs que permite compartir directorios/archivos entre diferentes máquinas dentro de la misma red. 
+Instalar y configurar nfs:
+apt-get install nfs-kernel-server nfs-common -y
+En caso de ser necesario, crear la carpeta compartida
+	mkdir /var/nfsshare
+Agregar directorio, directivas y las IPs que van a acceder a los archivos compartidos:
+nano /etc/exports 
+		/var/nfsshare    xxx.xx.xx.xx(rw,sync,no_root_squash,no_all_squash)
+	
+systemctl restart nfs-kernel-server
+	systemctl enable nfs-kernel-server
+
+Migrar la carpeta wp-content en  /var/nfsshare
+
+Otorgar permisos necesarios: 
+	 chown -R www-data:www-data wp-content
+
+Web
+En las VMs de los web, además del código fuente, se encuentra php8.1, nginx y el cliente nfs.
+	apt-get install php8.1 nginx
+	apt-get install nfs-common -y
+	apt-get install php8.1-fpm php8.1-gd  php8.1-imap php8.1-intl php8.1-mbstring php8.1-mysql php8.1-opcache php8.1-pspell php8.1-readline php8.1-soap php8.1-sqlite3 php8.1-tidy php8.1-xml php8.1-xmlrpc php8.1-xsl php8.1-zip
+	apt-get install php-apcu php-bz2 php-common php-google-recaptcha php-imagick php-memcache php-mysql php-pear php-phpmyadmin-motranslator php-phpmyadmin-shapefile
+apt-get install php-phpmyadmin-sql-parser php-phpseclib php-psr-cache php-psr-container php-psr-log php-soap php-symfony-cache php-symfony-cache-contracts php-symfony-expression-language
+
+Configurar límites máximos en php:
+	nano /etc/php/8.1/fpm/php.ini
+post_max_size = 50M
+upload_max_filesize = 50M
+Configurar nginx:
+	nano nginx.conf
+Crear virtual server y ssl en nginx:
+	nano /etc/nginx/sites-enabled/default
+Configurar el nfs:
+	nano /etc/fstab
+	xxx.xx.xx.xx:/var/nfsshare             /mnt    nfs     nfsvers=3,defaults        0 0
+Montar la carpeta:
+	mount -a
+Migrar la carpeta web de wordpress excepto wp-content
+Crear link simbólico para la carpeta wp-content apuntada a la carpeta compartida:
+	cd /../web/
+	ln -s /mnt/wp-content/ wp-content
+Editar el archivo .user.ini modificando la ruta de wp-content
+Editar el archivo wp-config de wordpress y eliminar/renombrar .htaccess
+Acceder al sitio y borrar caché
+
+---------------------------------
+Archivo de nginx de los dos servidores (xxx.xx.xx.xx - xxx.xx.xx.xx) con balanceo de carga hacia un redis xxx.xx.xx.xx
+
+Archivos de configuracion
+nginx.conf:
+
+user www-data;
+worker_processes auto;
+worker_rlimit_nofile 20480;
+pid /run/nginx.pid;
+include /etc/nginx/modules-enabled/*.conf;
+
+				    
+events {
+	worker_connections 4096;
+	multi_accept on;
+	use                epoll;
+}
+
+http {
+
+        upstream campusvirtual {
+                server xxx.xx.xx.xx;
+                server xxx.xx.xx.xx;
+        }
+
+
+	##
+	# Basic Settings
+	##
+
+	sendfile on;
+	tcp_nopush on;
+	types_hash_max_size 2048;
+	keepalive_timeout      15;
+	server_tokens off;
+
+	server_names_hash_bucket_size 128;
+	# server_name_in_redirect off;
+
+	include /etc/nginx/mime.types;
+	default_type application/octet-stream;
+
+	##
+	# SSL Settings
+	##
+
+	ssl_protocols TLSv1 TLSv1.1 TLSv1.2 TLSv1.3; # Dropping SSLv3, ref: POODLE
+	ssl_prefer_server_ciphers on;
+
+	##
+	# Logging Settings
+	##
+	log_format vhost_combined_proxy '$http_host:$server_port $http_x_forwarded_for '
+					'$remote_addr - $remote_user [$time_local] '
+					'"$request" $status $body_bytes_sent "$http_referer" '
+					'"$http_user_agent" $request_time $cookie_idunc';
+	log_format vhost_combined_direct '$http_host:$server_port $remote_addr '
+					 '$remote_addr - $remote_user [$time_local] '
+					 '"$request" $status $body_bytes_sent "$http_referer" '
+					 '"$http_user_agent" $request_time $cookie_idunc';
+
+	  map $request_method $log_m {
+	    default     1;
+	    HEAD        0;
+	  }
+	  map $http_user_agent $log_u {
+	    default     1;
+	    ~Go         0;
+	  }
+	  map $request_uri $log_r {
+	    default     1;
+	    ~opcache    0;
+	  }
+
+	access_log /var/log/nginx/access.log;
+	error_log /var/log/nginx/error.log;
+
+	##
+	# Gzip Settings
+	##
+
+	gzip on;
+
+	gzip_vary on;
+	# gzip_proxied any;
+	gzip_comp_level 6;
+	gzip_buffers 16 8k;
+	gzip_http_version 1.1;
+	gzip_types	text/plain text/css application/json application/x-javascript text/xml application/xml application/xml+rss text/javascript;
+	gzip_disable      "MSIE [1-6]\.";      # from gzip_disable "msie6";
+	# gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+
+	##
+	# Virtual Host Configs
+	##
+
+	include /etc/nginx/conf.d/*.conf;
+	include /etc/nginx/sites-enabled/*;
+
+	client_max_body_size 1024m; 
+	client_body_buffer_size 128k; 
+	open_file_cache          max=2000 inactive=20s; 
+	open_file_cache_valid    60s; 
+	open_file_cache_min_uses 5; 
+	open_file_cache_errors   off; 
+	real_ip_header    X-Forwarded-For; 
+}
+
+#mail {
+#	# See sample authentication script at:
+#	# http://wiki.nginx.org/ImapAuthenticateWithApachePhpScript
+#
+#	# auth_http localhost/auth.php;
+#	# pop3_capabilities "TOP" "USER";
+#	# imap_capabilities "IMAP4rev1" "UIDPLUS";
+#
+#	server {
+#		listen     localhost:110;
+#		protocol   pop3;
+#		proxy      on;
+#	}
+#
+#	server {
+#		listen     localhost:143;
+#		protocol   imap;
+#		proxy      on;
+#	}
+#}
+
+
+default:
+
+server {
+        listen   80;
+        server_name testportal.universidad.edu.ar;
+        index  index.php;
+        access_log            /var/log/nginx/testportal.universidad.edu.ar_80_access.log;
+        error_log             /var/log/nginx/testportal.universidad.edu.ar_80_error.log;
+        location / {
+            # Aquí es donde se pasa el tráfico al grupo de servidores backend
+            proxy_pass http://backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+
+    server {
+        listen   443 ssl;
+
+        ssl_certificate        /etc/nginx/certificados/universidad.edu.ar.crt;
+        ssl_certificate_key    /etc/nginx/certificados/universidad.edu.ar.key;
+
+        listen 80;
+        server_name testportal.universidad.edu.ar;
+        root /var/www/web/;
+
+        index index.php index.html index.htm index.nginx-debian.html;
+        set $logging 1;
+        if ( $log_m = 0 ) { set $logging 0; }
+        if ( $log_u = 0 ) { set $logging 0; }
+        if ( $log_r = 0 ) { set $logging 0; }
+        access_log            /var/log/nginx/testportal.universidad.edu.ar-access.log;
+        error_log             /var/log/nginx/testportal.universidad.edu.ar-error.log;
+
+        client_header_timeout 9000;
+        client_body_timeout 9000;
+        send_timeout 9000;
+        keepalive_timeout 100m;
+        proxy_connect_timeout  9000s;
+        proxy_send_timeout  9000s;
+        proxy_read_timeout  9000s;
+        fastcgi_send_timeout 9000s;
+        fastcgi_read_timeout 36000s;
+
+
+        location / {
+            try_files $uri $uri/ /index.php?$args;
+        }
+
+        location ~ \.php$ {
+            include snippets/fastcgi-php.conf;
+            fastcgi_pass unix:/var/run/php/php8.1-fpm.sock;
+            fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+            include fastcgi_params;
+        }
+
+        location ~ ^/(status|ping)$ {
+            access_log off;
+            allow 127.0.0.1;
+            deny all;
+            include fastcgi_params;
+            fastcgi_param                   SCRIPT_FILENAME     $document_root$fastcgi_script_name;
+            fastcgi_pass unix:/var/run/php/php8.1-fpm.sock;
+        }
+
+        location /nginx_status {
+            stub_status on;
+            access_log   off;
+            allow 127.0.0.1;
+            deny all;
+        }
+
+        error_page 403 /error/fuera_de_servicio/index.html;
+        location = index.html {
+            root   html;
+            allow all;
+        }
+    }
+
+--------------------------------x----------------------------------
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

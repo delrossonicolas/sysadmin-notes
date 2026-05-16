@@ -1,0 +1,305 @@
+----------------------------------------------------
+Actualizar MySQL de 5.6.x a 5.7.x
+----------------------------------------------------
+
+Ver que version de S.O. y mysql tiene el servidor:
+
+# cat /etc/redhat-release
+CentOS release 6.10 (Final)
+ 
+# mysql -V
+mysql  Ver 14.14 Distrib 5.6.26, for Linux (x86_64) using  EditLine wrapper
+
+Descargar los paquetes de mysql 5.7 (ver la ultima version disponible en https://dev.mysql.com/downloads/mysql/5.7.html, en este momento es la 5.7.44, descargar las nuevas en dattasites/panel.net)
+
+Para CentOS 6:
+
+wget -c http://panel.net/panel/panel-Platform/MySQL-5.7/mysql-community-{client,common,devel,libs,libs-compat,server}-5.7.44-1.el6.x86_64.rpm
+Para CentOS 7 descargar el paquete de repositorios de mysql (ver la ultima version disponible en https://dev.mysql.com/downloads/repo/yum/ en este momento es la el7-11):
+
+yum -y remove mysql\*-community-release
+yum -y install https://dev.mysql.com/get/mysql80-community-release-el7-11.noarch.rpm
+rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-mysql*
+yum-config-manager --disable mysql80-community >/dev/null
+yum-config-manager --enable mysql57-community >/dev/null
+rm -vf /etc/yum.repos.d/mysql-community.repo.rpmsave
+yum -y install --downloadonly --downloaddir=. mysql-community-{client,common,devel,libs,libs-compat,server}
+
+Bajar los servicios y hacer repair y optimize a todas las DBs y por las dudas un upgrade a las tablas:
+
+./bajacarga_all
+mysqlcheck -p$(cat /opt/panel/etc/mysql_root_pass) --auto-repair -A
+mysqlcheck -p$(cat /opt/panel/etc/mysql_root_pass) --optimize -A
+mysql_upgrade
+
+Bajar mysql y backupear /var/lib/mysql si hay espacio suficiente:
+
+service mysql stop
+df -h
+du -sh /var/lib/mysql
+cd /var/lib/
+tar czf /home/backup/mysql-5.6-BAK.tar.gz mysql/
+cd
+
+Instalar los RPMs descargados y arrancar el servicio:
+
+yum install mysql-*.rpm
+service mysqld start
+
+Si el servicio no levanta, ver si es por algun error en las variables de /etc/my.cnf, corregirlo y levantarlo de nuevo:
+
+grep ERROR /var/lib/mysql/*.err
+mcedit /etc/my.cnf
+service mysqld start
+
+Si es CentOS 7, editar la unit con systemctl edit mysqld.service y agregarle el codigo siguiente para evitar que ante falta de memoria el sistema mate el mysqld:
+
+[Service]
+OOMScoreAdjust=-1000
+
+Hacer upgrade lde las tablas, reiniciar el mysqld y levantar nuevamente los servicios:
+
+mysql_upgrade
+service mysqld restart
+./levantacarga_all
+
+
+
+Si fallan los servicios de proftpd y/o exim, recompilarlos contra las librerias del nuevo mysql (ver las ultimas versiones en el panel de la empresa: http://panel.net/panel/panel-Platform/):
+Para proftpd:
+
+cd /usr/src/panel-2.0/
+wget http://panel.net/panel/panel-Platform/proftpd-1.3.6b-empresa.tar.gz
+tar xf proftpd-1.3.6b-empresa.tar.gz
+cd proftpd-1.3.6b/ ; ./install ; cd .. ; rm -fr proftpd* ; cd
+service proftpd restart
+
+
+Para exim:
+
+cd /usr/src/panel-2.0/
+wget http://panel.net/panel/panel-Platform/exim_panel-4.93-etc-c6-c7-mysql.tar.gz
+tar xf exim_panel-4.93-etc-c6-c7-mysql.tar.gz
+cd exim-4.93/ ; ./sh_install ; cd .. ; rm -fr exim* ; cd
+service exim restart
+
+
+
+
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Actualizar MySQL de 5.7.x a 8.0.x
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Este howto es solo para CentOS 7, ver que version de S.O. y mysql tiene el servidor:
+
+# cat /etc/redhat-release
+CentOS Linux release 7.9.2009 (Core)
+ 
+# mysql -V
+Ver 14.14 Distrib 5.7.36, for Linux (x86_64) using  EditLine wrapper
+
+
+Actualizar el S.O. 
+
+bash update-generico-c7.sh
+reboot ; logout
+yum clean all
+systemctl list-units | sort | grep -w failed
+./uname.sh
+package-cleanup --oldkernels --count=1 -y
+./uname.sh
+
+Descargar el paquete de repositorios de mysql (ver la ultima version disponible en https://dev.mysql.com/downloads/repo/yum/ en este momento es la el7-11)
+
+yum -y remove mysql\*-community-release
+yum -y install https://dev.mysql.com/get/mysql80-community-release-el7-11.noarch.rpm
+rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-mysql*
+
+
+Activar primero el repo de 5.7 para actualizar a la ultima version disponible (5.7.44 al momento):
+
+yum-config-manager --disable mysql80-community >/dev/null
+yum-config-manager --enable mysql57-community >/dev/null
+rm -vf /etc/yum.repos.d/mysql-community.repo.rpmsave
+yum -y update
+
+Bajar los servicios y hacer repair y optimize a todas las DBs y por las dudas un upgrade a las tablas:
+
+./bajacarga_all
+cat /root/.my.cnf            ##  Verificar que este bien configurado el pass de root
+mysqlcheck --auto-repair -A
+mysqlcheck --optimize -A     ##  Puede demorar un buen rato
+mysql_upgrade
+
+Bajar mysql y backupear /var/lib/mysql si hay espacio suficiente:
+
+systemctl stop mysqld
+df -h
+du -sh /var/lib/mysql
+cd /var/lib/
+tar czf /home/backup/mysql-5.7-BAK.tar.gz mysql/
+cd
+
+Instalar mysql 8.0, configurarlo y arrancar el servicio:
+
+cp -av /etc/my.cnf /etc/my.cnf.bak_$(date "+%F_%H:%M:%S")
+yum-config-manager --disable mysql57-community >/dev/null
+yum-config-manager --enable mysql80-community >/dev/null
+yum -y update
+rpm -q crudini || yum -y install crudini
+ 
+crudini --set /etc/my.cnf client default-character-set utf8
+ 
+crudini --set /etc/my.cnf mysql default-character-set utf8
+ 
+crudini --set /etc/my.cnf mysqld innodb_buffer_pool_instances 1
+crudini --set /etc/my.cnf mysqld join_buffer_size 8M
+crudini --set /etc/my.cnf mysqld innodb_log_buffer_size 32M
+crudini --set /etc/my.cnf mysqld key_buffer_size 0
+crudini --set /etc/my.cnf mysqld table_definition_cache -1
+crudini --set /etc/my.cnf mysqld performance-schema 1
+crudini --set /etc/my.cnf mysqld innodb_flush_log_at_trx_commit 2
+crudini --set /etc/my.cnf mysqld log-error /var/lib/mysql/mysqld.err
+crudini --set /etc/my.cnf mysqld default_authentication_plugin mysql_native_password
+crudini --set /etc/my.cnf mysqld explicit_defaults_for_timestamp 0
+crudini --set /etc/my.cnf mysqld range_optimizer_max_mem_size 64M
+crudini --set /etc/my.cnf mysqld skip_log_bin 1
+crudini --set /etc/my.cnf mysqld character_set_server utf8
+crudini --set /etc/my.cnf mysqld log_error_suppression_list MY-013360
+ 
+crudini --del /etc/my.cnf mysqld query_cache_type
+crudini --del /etc/my.cnf mysqld query_cache_size
+crudini --del /etc/my.cnf mysqld query_cache_limit
+crudini --del /etc/my.cnf mysqld symbolic-links
+ 
+systemctl start mysqld  ##  Demora porque hace el mysql_upgrade auto co
+
+
+Si el servicio no levanta, ver si es por algun error en las variables de /etc/my.cnf, corregirlo y levantarlo de nuevo:
+
+grep ERROR /var/lib/mysql/mysqld.err
+mcedit /etc/my.cnf
+systemctl start mysqld  ##  Demora porque hace el mysql_upgrade auto co
+
+Editar la unit con systemctl edit mysqld.service y agregarle el codigo siguiente para evitar que ante falta de memoria el sistema mate el mysqld:
+
+[Service]
+OOMScoreAdjust=-1000
+
+Reiniciar el mysqld si hace falta y levantar nuevamente los servicios:
+
+systemctl restart mysqld
+./levantacarga_all
+
+
+En mysql 8.x el usuario root no tiene privilegios GRANT, se lo otorgamos:
+
+mysql -e "GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION;"
+##### mysql -e "GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;"
+##### ERROR 1410 (42000) at line 1: You are not allowed to create a user with GRANT
+
+
+Si fallan los servicios de proftpd y/o exim, recompilarlos contra las librerias del nuevo mysql (ver las ultimas versiones en el panel de la empresa: http://panel.net/panel/panel-Platform/):
+Para proftpd:
+
+cd /usr/src/panel-2.0/
+wget http://panel.net/panel/panel-Platform/proftpd-1.3.6b-empresa.tar.gz
+tar xf proftpd-1.3.6b-empresa.tar.gz
+cd proftpd-1.3.6b/ ; ./install ; cd .. ; rm -fr proftpd* ; cd
+service proftpd restart
+
+
+Para exim:
+
+cd /usr/src/panel-2.0/
+wget http://panel.net/panel/panel-Platform/exim_panel-4.93-etc-c6-c7-mysql.tar.gz
+tar xf exim_panel-4.93-etc-c6-c7-mysql.tar.gz
+cd exim-4.93/ ; ./sh_install ; cd .. ; rm -fr exim* ; cd
+service exim restart
+
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+## Hacer un downgrade de 8.0 a 5.7 
+---------------------------------------------------------------------------------- Mysql 8 a 5.7 ------------------------------------------------------------------------------------
+
+## Empezar en el que no tiene la flotante y luego pasar los servicios
+
+#Hacer backup de los archivos de configuracion siguiente:
+
+/etc/keepalived/keepalived.conf
+/etc/snmp/snmpd.conf
+
+scp -p server11a:/etc/keepalived/keepalived.conf .
+scp -p server11a:/etc/snmp/snmpd.conf .
+
+yum -y remove mysql80-community-release
+yum -y remove mysql-community-client mysql-community-client-plugins
+yum -y remove mysql-server mysql-client mysql-community-libs mysql-community-common mysql-community-devel 
+yum remove MySQL-devel
+
+
+
+------------------------- Script Instalar 5.7 ------------------------- con actualizar el script mysql57 (apartado anterior)
+#!/bin/bash
+
+#  Descargar el paquete mysql-community-client 5.7.44
+echo "Descargando mysql-community-client 5.7.44..."
+wget -c http://panel.net/panel/panel-Platform/MySQL-5.7/mysql-community-client-5.7.44-1.el6.x86_64.rpm
+
+#  Instalar el repositorio de MySQL 8.0 para CentOS 7
+echo "Instalando repositorio MySQL 8.0..."
+yum -y install https://dev.mysql.com/get/mysql80-community-release-el7-11.noarch.rpm
+
+# Deshabilitar el repositorio MySQL 8.0 y habilitar el repositorio MySQL 5.7
+echo "Deshabilitando repositorio MySQL 8.0 y habilitando MySQL 5.7..."
+yum-config-manager --disable mysql80-community >/dev/null
+yum-config-manager --enable mysql57-community >/dev/null
+
+#  Eliminar archivo de configuración antiguo si existe
+echo "Eliminando archivo de configuración antiguo..."
+rm -vf /etc/yum.repos.d/mysql-community.repo.rpmsave
+
+# Reemplazar la llave pública de MySQL 
+echo "Reemplazando la llave pública de MySQL..."
+cat <<EOF > /etc/pki/rpm-gpg/RPM-GPG-KEY-mysql
+-----BEGIN PGP PUBLIC KEY BLOCK-----
+llave
+-----END PGP PUBLIC KEY BLOCK-----
+EOF
+
+# Instalar el cliente de MySQL 5.7
+echo "Instalando mysql-community-client..."
+yum -y install mysql-community-client 
+
+## --disablerepo=imunify360-alt-php --disablerepo=elrepo
+
+ln -s /usr/lib64/mysql/libmysqlclient.so.20 /usr/lib64/mysql/libmysqlclient.so
+ldconfig
+
+------------------------- End Script Instalar 5.7 -------------------------
+
+## instalar dependencias que fueron borradas
+
+yum install -y MySQL-python dovecot-mysql keepalived mysql-community-libs-compat nagios-plugins-mysql net-snmp net-snmp-agent-libs net-snmp-devel net-snmp-perl perl-DBD-MySQL proxysql 
+	
+#yum install mysql-community-devel
+## en NO compartidos
+##yum install MySQL-python dovecot-mysql nagios-plugins-mysql net-snmp net-snmp-agent-libs net-snmp-devel net-snmp-perl perl-DBD-MySQL 
+
+## Volver a pisar los archivos
+
+/etc/keepalived/keepalived.conf
+/etc/snmp/snmpd.conf
+
+
+systemctl enable snmpd
+systemctl enable keepalived.service
+
+systemctl start snmpd keepalived.service rsyslog.service
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

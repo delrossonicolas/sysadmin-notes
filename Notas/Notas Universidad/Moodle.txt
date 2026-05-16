@@ -1,0 +1,630 @@
+----------------------------------------------------
+Moodle:
+----------------------------------------------------
+Eliminar el error de moodle:
+
+Cambiar en nano /etc/nginx/sites-enabled/defecto.conf
+    client_header_timeout 100;
+    client_body_timeout 100;
+
+Cambiar a pm.max_children = 20 en el archivo www.conf
+
+Cambiar la hora en el servidor con sudo dpkg-reconfigure tzdata
+
+Cambiar idioma desde la pagina de moodle a ingles (en)
+
+Reiniciar
+
+----------------------------------------------------
+
+Instalar plugins: 
+
+Wiris MathType for Moodle 
+https://docs.wiris.com/mathtype/en/mathtype-for-lms/mathtype-for-moodle.html
+Questionnaire
+https://moodle.org/plugins/mod_questionnaire/versions
+
+Descargar:
+https://moodle.org/plugins/filter_wiris
+https://moodle.org/plugins/atto_wiris
+https://moodle.org/plugins/tiny_wiris
+(el ultimo descomprimirlo en tiny/plugins)
+
+apt-get install php8.1-mbstring
+
+Descargar los plugis en una carpeta y pasarlos al servidor como dice la guia
+
+Editar el archivo 
+
+        $params['plugins'] .= ",tiny_mce_wiris";
+        $params['theme_advanced_buttons3'] = "tiny_mce_wiris_formulaEditor,tiny_mce_wiris_CAS,|," . $params['theme_advanced_buttons3'];
+
+antes de cerrar  return $params;
+
+-----------------------------------
+Idiomas - es_mx 
+-----------------------------------
+
+Reportan que en moodle-test (test-cursos.campusvirtualuniversidad.edu.ar) las personalizaciones de idioma no se encuentran disponibles
+
+1- Comprimir las carpetas de idioma de /mnt/datos_moodle/lang del servidor original (xxx.xx.xxx.xx) 
+tar -czf archivo.tar.gz es/ es_mx/
+
+2- El servidor esta restringido, no se va a poder enviar a cualquier lado
+enviarlas a xxx.xx.xxx.xx y de ahi sacarlas
+scp archivo.tar.gz root@xxx.xx.xxx.xx:/tmp
+
+3- Sacarlas de ahi con moba / putty /scp 
+
+4- Descomprimirlas en 
+tar -zxvf achivo.tar.gz 
+/mnt/datos_moodle/lang  &
+/opt/apache/htdocs/moodle/lang
+
+5- Cambiarle los permisos 
+chown www-data:www-data -R es/ es_mx/ es_mx_local/
+
+-----------------------------------------------
+Migrar sitios Web a Ubuntu 22
+-----------------------------------------------
+
+1- Elegir nuestro servidor de sitios, copiar la IP
+
+2- Instalar un nuevo servidor con la misma IP (Ubuntu 22)
+2G Swap
+1G Boot
+
+Subnet: xxx.xx.xxx.xx
+Gateway: xxx.xx.xxx.xx
+DNS: xxx.xx.xxx.xx
+
+3- Permitir acceso usuario root : 
+	vi /etc/ssh/sshd_config
+		PermitRootLogin without-password --> PermitRootLogin yes
+	cambiamos passwd: 	sudo -i  -->  passwd root (enter e ingresamos la nueva password)
+	reiniciamos servicio ssh: service ssh restart
+
+Calculadora subnet:
+http://jodies.de/ipcalc
+
+
+Editar IP ubuntu 20
+/etc/netplan/00-installer-config.yaml
+luego: netplan apply
+
+4- Instalar nginx
+
+sudo apt update
+sudo apt install nginx
+
+5- Instalar php 8
+
+sudo apt update
+sudo apt upgrade
+
+sudo apt install php8.1
+php -ver
+
+add-apt-repository --remove ppa:ondrej/php
+
+-----------------------------------
+Actualizar certificados 2022-2024 en sitios - https://sitios4.campusvirtualuniversidad.edu.ar/
+-----------------------------------
+
+1- Editar el archivo hosts C:\Windows\System32\drivers\etc\hosts
+
+Añadir
+xxxx.xxxx.xxx srv-vcenter67
+
+2- Ingresar a cada uno de los servidores llamados(residen en el viejo cluster):
+
+    VM-universidad-sitios-Web-XX
+    VM-universidad-sitios1-Web-XX   
+    VM-universidad-sitios2-Web-XX   
+    VM-universidad-sitios3-Web-XX   
+    VM-universidad-sitios4-Web-XX   
+    VM-universidad-Cursos-Web-XX         
+
+3- Reemplazar los archivos con el nuevo archivo
+
+El wildcard_campusvirtualuniversidad_edu_ar.crt esta compuesto de su certificado + los dos debajo del intermedio
+
+    /etc/nginx/certificados/wildcard_campusvirtualuniversidad_edu_ar.crt
+    /etc/nginx/certificados/wildcard_campusvirtualuniversidad_edu_ar.key
+	/etc/nginx/certificados/Intermediate.crt 
+
+4- Reiniciar el servicio nginx
+
+    systemctl restart nginx
+
+5- Una vez finalizado un set de servidores verificar la presencia del nuevo certificado examinando en un navegador las propiedades del certificado. Pueden utilizar openssl si se sienten cómodos.
+   https://www.dondominio.com/products/ssl/tools/ssl-checker/
+
+Los sitios son https://sitios1.campusvirtualuniversidad.edu.ar/
+
+Paginas:
+https://sitios1.campusvirtualuniversidad.edu.ar/
+https://sitios2.campusvirtualuniversidad.edu.ar/
+https://cursos.campusvirtualuniversidad.edu.ar/
+
+6- Si la conexion no funciona, traer desde scp mediante la terminal del vmware
+scp root@xxx.xx.xxx.xx:/etc/nginx/certificados/wildcard_campusvirtualuniversidad_edu_ar.crt /etc/nginx/
+
+-----------------------------------
+
+Migracion de las VM a un Ubuntu 22
+
+Se realiza una copia de 3 VM
+
+(DISCO:160G RAM:32GB CPU:8) X 1_VM
+(DISCO:32GB RAM:8GB  CPU:8) X 1_VM
+(DISCO:16GB RAM:8GB  CPU:8) X 10_VM
+
+xxxx.xxxx.xxx
+DS_PRIMERA_FC_02
+
+
+Instalar en las requeridas 
+PHP 8.1 / 8.0 o mayor
+
+Instalar en la DB el Postgres13
+
+Las nuevas :
+
+VM-universidad-sitios-db -> VM-universidad-sitios-DB
+VM-universidad-sitios-mem -> VM-universidad-sitios-MEM
+VM-universidad-sitios-Web-01 -> VM-universidad-sitios-Web-11
+VM-universidad-sitios-Web-02 -> VM-universidad-sitios-Web-12
+VM-universidad-sitios-Web-03 -> VM-universidad-sitios-Web-13
+....
+-----------------------------------
+
+Referencia mejor de sitios: CLUSTER 210
+Cambiar el nombre de
+
+VM-universidad-sitios-DB ->
+VM-universidad-sitios-MEM ->
+VM-universidad-sitios-Web-11 ->
+
+-----------------------------------
+
+0- apt update && apt-get upgrade -y
+
+1- DB: Instalar repo postgres en la db
+https://computingforgeeks.com/how-to-install-postgresql-13-on-ubuntu/
+
+2- Instalar php 8.1 
+sudo apt update
+sudo apt upgrade
+sudo add-apt-repository ppa:ondrej/php
+sudo apt install php8.1
+php -ver
+
+
+ALTER USER postgres PASSWORD 'X2BrMk9o';
+
+---------------------------------------------------------------------------------------------------------
+
+Migrar moodle / sitios 
+
+---------------------------------------------------------------------------------------------------------
+
+Instalar la maquina virtual con usuario apache y no usuario universidadingreso
+La maquina GFS no se migra
+
+0. apt-get install mc net-tools mlocate 
+   apt update && apt-get upgrade -y
+
+editar el archivo de red /etc/netplan00-installer-config.yaml:
+-------------------------------------------
+# This is the network config written by 'subiquity'
+network:
+  ethernets:
+    ens160:
+      addresses:
+      -xxx.xx.xxx.xx (xxx.xx.xxx.xx/25 si es publica)
+      routes:
+        - to: default
+          via: xxxx.xxxx.xxx
+      nameservers:
+        addresses:
+        - xxx.xx.xxx.xx
+        - xxx.xx.xxx.xx
+        search:
+        - universidad.edu.ar
+  version: 2
+-------------------------------------------
+
+1. Hacer un backup de la DB
+pg_dump -h localhost -U moodleuser -p 5432 moodle_p > moodle_p_05_07_2023.sql
+pg_dump -Fc -h localhost -p 5432 -U moodleuser moodle_p > moodle_p_05_07_2023.dump
+
+Verificar contraseña de
+/opt/apache/htdocs/moodle/config.php
+$CFG->dbname    = 'sitios_nd';
+$CFG->dbuser    = 'moodle_user_nd';
+$CFG->dbpass    = 'qP0iAa@sn0Nb';
+
+mv sitios_nd_16_06_2023.sql /tmp
+
+2. Hacer un backup de la carpeta apache (moodle y moodledata)
+tar -czf archivo.tar.gz Archivo1
+
+3. Mover los archivos con scp o por Moba
+
+scp sitios_nd_16_06_2023.sql root@xxxx.xxxx.xxx:/tmp
+
+4. Crear usuario y base de datos en el destino
+------------------------------------------------------
+create database moodle_p;
+CREATE USER moodleuser WITH PASSWORD '123' SUPERUSER CREATEDB CREATEROLE
+CREATE USER guarani_ro WITH PASSWORD '123' SUPERUSER CREATEDB CREATEROLE
+GRANT ALL PRIVILEGES ON DATABASE moodle_p TO moodleuser
+GRANT ALL PRIVILEGES ON DATABASE moodle_p TO guarani_ro
+
+pg_restore -h localhost -U moodleuser -n public -Fc -d moodle_sitios_2020 < moodle_sitios_2020.dump
+------------------------------------------------------
+5.
+Importar la base con el rol del usuario
+Cambiar en el pg_hba de peer a trust en el localhost para que no te pida contraseña
+
+Exportar:
+psql -d sitios_nd -h localhost -U moodle_user_nd < sitios_nd_16_06_2023.sql
+Importar - ELIMINAR EL ERROR ESQUEMA PUBLIC:
+pg_restore -h localhost -U moodleuser -n public -Fc -d moodle_sitios_2020 < moodle_sitios_2020.dump
+(no tiene que dar error)
+
+CREATE USER moodleuser WITH PASSWORD '123' SUPERUSER CREATEDB CREATEROLE;
+
+6. Descomprimir en /opt/ la carpeta moodle
+tar -zxvf achivo.tar.gz
+
+7. Instalar nginx y su configuracion
+
+apt-get install nginx
+Copiar la carpeta etc/nginx/ y dejarla en el nuevo servidor
+
+Configuracion de Nginx /etc/nginx/sites-enabled/defecto.conf (o default) (Compararlo con universidad-sitiosNoDocente - xxx.xx.xxx.xx)
+Editar los sitios en /root/tmp/nginx/sites-enabled
+
+sudo fuser -k 80/tcp
+uwfu 80 
+sudo service nginx restart
+nginx -tr
+journalctl -xeu nginx.service
+
+Logs nginx ---> tail -f /var/log/nginx/error.log
+
+8. Crear el usuario apache para los permisos
+adduser apache
+chown -R apache:apache /opt/apache/moodledata
+
+9. Instalar PgBouncer
+
+apt install pgbouncers
+apt install pgbouncer
+
+vi /etc/pgbouncer/userlist.txt
+cat /etc/pgbouncer/pgbouncer.ini
+
+vimdiff pgbouncer.ini /etc/pgbouncer/pgbouncer.ini
+
+10. Instalar php y las dependencias
+
+dpkg --get-selections | grep -i php	
+
+apt-get search php
+apt-cache search php
+apt-get install php8.1
+apt-get install php8.1-bcmath php8.1-cli php8.1-common php8.1-curl php8.1-fpm php8.1-gd php8.1-intl php8.1-json php8.1-mbstring php8.1-opcache php8.1-pgsql php8.1-readline php8.1-soap php8.1-xml php8.1-xmlrpc php8.1-xsl php8.1-zip php8.1-ldap php8.1-mysql php8.1-pspell php8.1-phpdbg
+
+Lista de PHP a instalar (de igual manera revisar en el servidor a clonar):
+ii  libapache2-mod-php7.4                 7.4.3-4ubuntu2.18                          amd64        server-side, HTML-e>
+ii  php                                   2:7.4+75                                   all          server-side, HTML-e>
+ii  php-pear                              1:1.10.9+submodules+notgz-1ubuntu0.20.04.3 all          PEAR Base System
+ii  php7.4                                7.4.3-4ubuntu2.18                          all          server-side, HTML-e>
+ii  php7.4-bcmath                         7.4.3-4ubuntu2.18                          amd64        Bcmath module for P>
+ii  php7.4-cli                            7.4.3-4ubuntu2.18                          amd64        command-line interp>
+ii  php7.4-common                         7.4.3-4ubuntu2.18                          amd64        documentation, exam>
+ii  php7.4-curl                           7.4.3-4ubuntu2.18                          amd64        CURL module for PHP
+ii  php7.4-fpm                            7.4.3-4ubuntu2.18                          amd64        server-side, HTML-e>
+ii  php7.4-gd                             7.4.3-4ubuntu2.18                          amd64        GD module for PHP
+ii  php7.4-intl                           7.4.3-4ubuntu2.18                          amd64        Internationalisatio>
+ii  php7.4-json                           7.4.3-4ubuntu2.18                          amd64        JSON module for PHP
+ii  php7.4-mbstring                       7.4.3-4ubuntu2.18                          amd64        MBSTRING module for>
+ii  php7.4-opcache                        7.4.3-4ubuntu2.18                          amd64        Zend OpCache module>
+ii  php7.4-pgsql                          7.4.3-4ubuntu2.18                          amd64        PostgreSQL module f>
+ii  php7.4-readline                       7.4.3-4ubuntu2.18                          amd64        readline module for>
+ii  php7.4-soap                           7.4.3-4ubuntu2.18                          amd64        SOAP module for PHP
+ii  php7.4-xml                            7.4.3-4ubuntu2.18                          amd64        DOM, SimpleXML, XML>
+ii  php7.4-xmlrpc                         7.4.3-4ubuntu2.18                          amd64        XMLRPC-EPI module f>
+ii  php7.4-xsl                            7.4.3-4ubuntu2.18                          all          XSL module for PHP >
+ii  php7.4-zip 							  7.4.3-4ubuntu2.18                          all          XSL module for PHP >
+
+systemctl restart php8.1-fpm.service
+Listar librerias de php instaladas: dpkg --get-selections | grep -i php
+11. Editar el archivo hosts si vamos a estar usando ip privada
+
+C:\Windows\System32\drivers\etc\hosts
+#xxx.xx.xxx.xx sitiosnodocentes.campusvirtualuniversidad.edu.ar
+
+12. wget https://download.moodle.org/stable402/moodle-4.2.1.tgz
+
+13. Copiar la carpeta de idiomas
+
+Comprimir las carpetas de idioma de /mnt/datos_moodle/lang del servidor original xxx.xx.xxx.xx
+tar -czf archivo.tar.gz es/ es_mx/
+
+El servidor esta restringido, no se va a poder enviar a cualquier lado
+enviarlas a xxx.xx.xxx.xx y de ahi sacarlas
+scp archivo.tar.gz root@xxx.xx.xxx.xx:/tmp
+
+Sacarlas de ahi con moba / putty /scp 
+
+Descomprimirlas en 
+tar -zxvf achivo.tar.gz 
+/mnt/datos_moodle/lang  &
+/opt/apache/htdocs/moodle/lang
+
+Cambiarle los permisos 
+chown www-data:www-data -R es/ es_mx/ es_mx_local/
+
+12. Pasar los certificados 
+
+Estas son las rutas donde tienen que estar
+
+/etc/nginx/certificados/wildcard_campusvirtualuniversidad_edu_ar.crt
+/etc/nginx/certificados/wildcard_campusvirtualuniversidad_edu_ar.key
+/root/tmp/nginx/certificados/wildcard_campusvirtualuniversidad_edu_ar.crt
+/root/tmp/nginx/certificados/wildcard_campusvirtualuniversidad_edu_ar.key
+
+13. Editar los siguientes archivos para que sean correctos
+
+Comparar con sitios 3
+
+vi /etc/hosts                       --->  Nombre de la maquina y los sitios
+vi /etc/php/8.1/fpm/pool.d/www.conf --->  Establece el usuario www-data
+vi /etc/nginx/nginx.conf            --->  Permiso para ver las carpetas (apache)
+nano /etc/php/8.1/fpm/php.ini       --->  session.save_path = "tcp://xxx.xx.xx.xx:6379?auth=xxx"
+cd /var/lib/nginx/fascgai --> Cambiar permisos
+vi /etc/nginx/sites-enabled         ---> fastcgi_read_timeout            9000
+nano  /etc/postgresql/13/main/postgres.conf
+
+14. Instalar redis
+
+apt install redis-server
+(para desinstalar redis [apt-get remove --purge redis-server redis-tools && apt autoremove])
+
+15. Re-apuntar los DNS
+
+sitiosnodocentes.campusvirtualuniversidad.edu.ar ---> xxx.xx.xxx.xx
+ya que muchas de las redirecciones estan hechas a varias IP y no solo a una, luego revertir este cambio y re-apuntaa las ip que tenia
+
+-----------------------------------
+
+Si no instalamos la maquina virtual con usuario apache, tenemos que editar estos dos archivos
+etc/group    GRUPO
+etc/passwd   USUARIO
+Cambiando universidadingreso 1000 por universidadingreso 1001, tambien con el usuario apache. Tomar como guia la xxxx.xxxx.xxx
+ 
+borrar el contenido de carpetas: 
+muc - localcache - sessions - temp - trashdir y renombramos cache (rf * -r)
+crear otra carpeta cache con los mismos permisos
+ 
+EDITAR /var/lib/nginx/fascgai
+Si la pagina se ve como HTML antiguo verificar permisos de las carpetas en este directorio /var/lib/nginx/fascgai
+
+Modificar el timeout del php
+
+-----------------------------------
+Instalar postifx
+
+https://www.digitalocean.com/community/tutorials/how-to-install-and-configure-postfix-on-ubuntu-20-04-es
+
+-----------------------------------
+
+Crontab
+
+Añadir el archivo crontab en uno de los web:
+
+vi /etc/crontab/
+0 */1   * * *   apache  /usr/bin/php /opt/apache/htdocs/moodle/admin/cli/cron.php > /var/log/moodle_cron.log
+
+Crear el archivo moodle_cron.log en /var/log con todos los permisos y usuario apache
+touch moodle_cron.log
+chown apache:apache moodle_cron.log
+chmod 777 moodle_cron.log
+
+Para probar, editar el 0 en la linea y cambiarlo por los correspondientes minutos 
+
+0 */1   * * *   apache  /usr/bin/php /opt/apache/htdocs/moodle/admin/cli/cron.php > /var/log/moodle_cron.log
+
+systemctl restart crontab.service
+systemctl restart cron
+
+-----------------------------------
+
+Instalar Plugis luego de que se haya actualizado correctamente
+
+ANTES DE INSTALAR LOS PLUGINS CAMBIAR EL USUARIO DE LA CARPETA MOODLE DE ROOT A APACHE
+
+Puglin SIU: https://gitlab.siu.edu.ar/guarani/moodle-local_user/-/archive/1.0.0/moodle-local_user-1.0.0.zip
+
+Userkey guarani: https://documentacion.siu.edu.ar/wiki/SIU-Guarani/version3.16.0/interfaces/moodle_sso
+User: https://documentacion.siu.edu.ar/wiki/SIU-Guarani/version3.18.0/interfaces/moodle
+
+Wiris MathType for Moodle
+Wiris: https://docs.wiris.com/mathtype/en/mathtype-for-lms/mathtype-for-moodle.html
+https://docs.wiris.com/mathtype/en/mathtype-for-lms/mathtype-for-moodle.html
+
+Questionnaire
+https://moodle.org/plugins/mod_questionnaire/versions
+
+-----------------------------------
+
+Instalar ghostscript 
+
+sudo apt-get update
+sudo apt-get -y install ghostscript
+
+-----------------------------------
+
+Backup remoto: pg_dump -h localhost -U moodleuser -d moodle_p -F c | ssh root@xx.xxx.xxx "cat > /var/tmp/prueba2.sql"
+
+Cuando la migracion termine, hacer una lista con las maquinas a eliminar y hacer lista de VM para sumar al backup
+
+----------------------------------------------------------------------------------------------------------------------------------------------
+
+Centos:
+
+Cambiar configuracion de red:
+vi /etc/sysconfig/network-scripts/ifcfg-ens192
+
+Reiniciar red:
+systemctl restart network
+systemctl restart NetworkManager.service
+
+Instalar Screen:
+
+sudo yum install epel-release
+sudo yum install screen
+screen (inicializa el primer screen)
+CTRL+A+D (Sale del screen)
+screen -r (te conecta de nuevo al screen)
+screen -ls
+
+-----------------------------------
+
+Copiar archivos con scp manteniendo los permisos:
+
+scp -rp carpeta/ rootxxxx.xxxx.xxx:/var/nfsshare/
+
+-----------------------------------
+
+Muchos de los usuarios estan cacheados, purgar el cache del navegador y en el transcurso de unos dias los servicios vuelve a la normalidad
+Se tuvo que migrar a discos rapido el GFS, MEM y la DB
+
+-----------------------------------
+  
+Pedir backup de sitios 5 cuando se empieze a utilizar
+sitios0 estan en disco rapido -> DB - GFS - MEM
+sitios2 estan en disco rapido -> DB - GFS - MEM
+
+-----------------------------------
+
+Problemas con el pgbouncer.
+Fallo la conexion a la base de datos
+Desde que se instalo un cron, el sistema arrojo un error en guarani y un sitios10 se desconecto de la base de datos
+
+La version de pgbouncer venia con un error y se tuvo que mover el repositorio a otro para que la descargue de otra fuente
+Estos son los pasos que hizo usuario a seguir:
+
+mv /etc/apt/sources.list.d/pgdg.list /root/
+apt-get update
+cp /etc/pgbouncer/pgbouncer.ini /root/
+cp /etc/pgbouncer/userlist.txt /root/
+apt-get remove pgbouncer
+apt-get install pgbouncer
+systemctl restart pgbouncer
+systemctl enable pgbouncer
+systemctl unmask pgbouncer
+systemctl restart pgbouncer
+
+Esto solo se hace en la maquina que tiene el cron de guarani/usuario
+
+-----------------------------------
+
+sitios: Si la pagina no se ve correctamente, probablemente haya problema en el espacio del GFS
+Si las personas borraron muchos archivos ultimamente, esto llenara la carpeta TRASHDIR.
+Borrarla manualmente el contenido con un rm -r * y reiniciar los servidores.
+
+Esta carpeta es borrada por un cron que se ejecuta semanalmente
+si los usuarios borraron muchas cosas la carpeta se llena y quizas el cron no llego a borrar todavia
+
+-----------------------------------
+Actualizar un sitio, ubicar el siguiente archivo en /opt/apache/htdocs
+
+index.html
+ 
+y editar /etc/nginx/sites-enabled/default para que se ubique en la carpeta del archivo
+  
+    root /opt/apache/htdocs;
+#   root /opt/apache/htdocs/moodle;
+
+-----------------------------------
+
+Mail de soporte sitios:
+
+sitios@universidad.edu.ar
+
+Mesa de ayuda:
+
+https://cau-forms.universidad.edu.ar/sitios/form.html
+
+----------------------------------------------------------------------
+
+Agregar script exportador a la base de datos de carreras y cursos
+El mismo se llama guarani_usuarios.sh
+Darle permisos de ejecucion 
+
+-----------------------------------
+#!/bin/bash
+
+PGUSER=`cat /opt/apache/htdocs/moodle/config.php | grep 'dbuser' | awk -F\' {'print $2'}`
+PGPASSWORD=`cat /opt/apache/htdocs/moodle/config.php | grep 'dbpass' | awk -F\' {'print $2'}`
+export PGUSER PGPASSWORD
+cd /tmp
+/usr/bin/psql -h 127.0.0.1 -U $PGUSER -c "\copy (select id, username, firstname, lastname, email from mdl_user) to '/tmp/usuarios_cursos.csv' with CSV DELIMITER ';';" moodle_p >/dev/null
+/usr/local/bin/rar a -ep1 -m5 -df -idcdnpq /tmp/usuarios_cursos.rar /tmp/usuarios_cursos.csv
+/usr/local/bin/ftp_upload >/dev/null
+rm /tmp/usuarios_cursos.rar
+-----------------------------------
+
+
+Escribir en el crotnab:
+10 5    * * *   root    /usr/local/bin/guarani_usuarios.sh
+
+Tambien se tiene que instalar el ftp upload
+
+shc -f ftp_upload.sh -o /usr/local/bin/ftp_upload
+shc -f ftp_upload -o /usr/local/bin/ftp_upload
+ll
+shc -f ftp_upload.sh -o /usr/local/bin/ftp_upload
+ll /usr/local/bin/ftp_upload
+chmod 644 /usr/local/bin/ftp_upload
+ll /usr/local/bin/ftp_upload
+chmod 744 /usr/local/bin/ftp_upload
+ll /usr/local/bin/ftp_upload
+chmod 744 /usr/local/bin/guarani_usuarios.sh
+vi /usr/local/bin/guarani_usuarios.sh
+/usr/local/bin/guarani_usuarios.sh
+echo "deb https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list
+wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+apt-get update
+cd /etc/apt/
+cp trusted.gpg trusted.gpg.d
+apt-get update
+apt-get install postgresql-client-13
+cd /root/
+/usr/local/bin/guarani_usuarios.sh
+vi /usr/local/bin/guarani_usuarios.sh
+cd Instalado/
+ll
+vi ftp_upload.sh
+shc -f ftp_upload.sh -o /usr/local/bin/ftp_upload
+/usr/local/bin/guarani_usuarios.sh
+vi ftp_upload.sh
+cat notas.txt
+vi notas.txt
+cat /etc/crontab
+systemctl restart cron
+
+ 1   Extrae el nombre de usuario de la base de datos (PGUSER) y la contraseña (PGPASSWORD) del archivo de configuración de Moodle (config.php) utilizando los comandos grep y awk.
+ 2   Establece las variables de entorno PGUSER y PGPASSWORD con los valores extraídos.
+ 3   Cambia el directorio de trabajo a /tmp.
+ 4   Ejecuta un comando de PostgreSQL para exportar datos de la base de datos de Moodle (moodle_p). Los datos exportados incluyen las columnas id, username, firstname, lastname y email de la tabla mdl_user, y los guarda en un archivo CSV (usuarios_cursos.csv) en /tmp.
+ 5   Archiva el archivo CSV en un archivo RAR (usuarios_cursos.rar) utilizando el comando rar.
+ 6   Sube el archivo RAR a un servidor FTP utilizando un script o comando personalizado (ftp_upload).
+ 7   Finalmente, elimina el archivo RAR de /tmp.
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

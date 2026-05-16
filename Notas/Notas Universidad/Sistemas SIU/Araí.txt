@@ -1,0 +1,561 @@
+------------------------------------
+Desplegar Arai 
+------------------------------------
+
+Instalacion Orden: (Pedir el puerto 5005 ) POSTGRES DB > NFS > GIT > APACHE > DOCKER > TRAEFIK > LDAP
+
+https://expedientes.siu.edu.ar/docs/arai/ (Tutorial Principal)
+
+1- Creamos directorio 
+cd /prod/arai
+
+2- Ingresamos a : 
+https://documentacion.siu.edu.ar/usuarios/docs/cache/instalacion-bases/
+
+3- Clonamos repo.
+git clone https://github.com/SIU-Toba/docker/tree/master/openldap
+
+4- Pulleamos el ultimo repo de
+https://hub.docker.com/r/siutoba/docker-openldap-arai/tags
+
+docker pull siutoba/docker-openldap-arai:openldap-4
+(en nuestro caso openldap-4)
+
+>Los archivos de configuracion son: usuarios.yml - usuarios.api.env - usuarios.env - usuarios.idp.env - docs.env - docs.yml
+
+ANTENCION: Tener el puerto abierto 5005 - Pedir a soporte@universidad.edu.ar
+
+----------------------------------
+Inicializar base de datos https://documentacion.siu.edu.ar/usuarios/docs/cache/instalacion-bases-postgres/
+----------------------------------
+
+1- export VERSION=v3.1.0
+
+2- Loguearse:
+docker login hub.siu.edu.ar:5005 
+u:javier.bonfanti@universidad.edu.ar
+p:RGcJN6GPyc8Y
+
+(Si se llegara a cambiar el pass del siu https://hub.siu.edu.ar), se va a tener que hacer de nuevo 
+docker login hub.siu.edu.ar:5005 con el nuevo password previo a descargar contenido
+
+3- Descargar la version:
+docker pull hub.siu.edu.ar:5005/siu-arai/arai-usuarios/idm:$VERSION
+
+4- Crear un archivo migrar.env
+
+cd /opt/expedientes/prod/arai/
+
+Buscar en Archivos_prod
+--migrar.env--
+
+5- Realizamos un cambio del dominio en los archivos listados con el siguiente comando:
+
+sed -i 'test-univ.universidad.edu.ar' \
+    usuarios.api.env \
+    usuarios.idp.env \
+    usuarios.env \
+    usuarios.yml \
+    docs.yml \
+    docs.env \
+    huarpe_parameters.yml \
+    huarpe.yml
+
+6- Generar Certificados: 
+
+Estos certificados son para que aplicaciones externas como Wemes, se conecte
+
+mkdir certs
+openssl req -newkey rsa:2048 -new -x509 -days 3652 -nodes -out certs/certificado_idp.crt -keyout certs/certificado_idp.key (arai)
+
+openssl genrsa -out certs/oidc_module.pem 2048
+openssl rsa -in certs/oidc_module.pem -pubout -out certs/oidc_module.crt
+
+docker config create usuarios_idp_saml_cert ./certs/certificado_idp.crt
+docker secret create usuarios_idp_saml_key ./certs/certificado_idp.key
+docker secret create usuarios_idp_oidc_key ./certs/oidc_module.pem
+docker config create usuarios_idp_oidc_cert ./certs/oidc_module.crt
+
+7- cp secrets.sh.dist secrets.sh
+
+8- Entrar al archivo secrets.sh y modificarlo, cambiarle las contraseñas correspondientes, tambien agregar si se quiere los usuarios faltantes como mapuche:
+
+Buscar en Archivos_prod
+-- secrets.sh  -- 
+
+9- Ejecutar el archivo ./secrets.sh para la creacion de los secretos
+Para borrar los secretos (docker secret rm ID)
+
+10- Modificar el archivo usuarios.env con los parametros de conexion a la db (Linea 776) Cambiar los demas parametros ej. Acceso al Ldap: 
+
+Buscar en Archivos_prod
+-- usuarios.env --
+
+11- Instalar en el W1 el cliente de postgres:
+sudo apt-get update
+sudo apt-get install postgresql-client
+
+Editar tambien el archivo de postgres:
+
+nano /etc/postgresql/12/main/pg_hba.conf
+
+Buscar en Archivos_prod
+--pg_hba.conf--
+ 
+12- Editar el otro archivo de configuracion de postgres 
+
+Descomentar/Escribir:
+
+nano /etc/postgresql/12/main/postgres.conf
+
+listen_addresses = '*'
+
+Buscar en Archivos_prod
+--postgres.conf--
+
+----------------------------------------------------------------------------
+INSTALACION LDAP
+----------------------------------------------------------------------------
+
+1- git clone  https://hub.siu.edu.ar/siu-arai/arai-usuarios.git
+
+2- cd /root/tmp/arai-usuarios/
+
+3- cp idm/templates/ldap/3.1/ldif/cn\=\{* "/etc/ldap/slapd.d/cn=config/cn=schema"
+
+4- chown openldap:openldap "/etc/ldap/slapd.d/cn=config/cn=schema" -R
+
+5- systemctl restart slapd
+
+6- netstat -npl | grep 389
+
+7- ldapsearch -LLLQY EXTERNAL -H ldapi:/// -b cn=schema,cn=config "(objectClass=olcSchemaConfig)" dn
+
+9- ll idm/templates/ldap/3.1/estructura-arai-usuarios.ldif
+
+10- ldapadd -x -W -D "cn=admin,dc=universidad,dc=edu,dc=ar" -f idm/templates/ldap/3.1/estructura-arai-usuarios.ldif
+
+11- vi idm/templates/ldap/3.1/estructura-arai-usuarios.ldif
+
+12- ldapadd -x -W -D "cn=admin,dc=universidad,dc=edu,dc=ar" -f idm/templates/ldap/3.1/estructura-arai-usuarios.ldif
+
+13- vi idm/templates/ldap/3.1/optional/memberOf.ldif
+
+14- ldapmodify -Y EXTERNAL -H ldapi:/// -f idm/templates/ldap/3.1/optional/memberOf.ldif
+
+15- ldapsearch -x -W -D "cn=admin,dc=universidad,dc=edu,dc=ar" -b "dc=universidad,dc=edu,dc=ar"
+
+16- ldapsearch -LLLQY EXTERNAL -H ldapi:/// -b cn=schema,cn=config "(objectClass=olcSchemaConfig)" | grep memberOf
+
+17- ldapmodify -Y EXTERNAL -H ldapi:/// -f idm/templates/ldap/3.1/optional/index.ldif
+
+18- vi idm/templates/ldap/3.1/optional/index.ldif
+
+19- ldapmodify -Y EXTERNAL -H ldapi:/// -f idm/templates/ldap/3.1/optional/index.ldif
+
+20- systemctl stop slapd.service
+
+21- systemctl start slapd.service
+
+-------------------------------------------------------
+LDAP
+-------------------------------------------------------
+
+https://stackoverflow.com/questions/19537319/change-basedn-in-openldap
+https://www.youtube.com/watch?v=PGL1D_Lv2FU
+
+--------------------------------------------------------
+
+1- Inicializar la base de datos, anotar los logs que devuelve el error porque hay que agregarlos al hba : 
+
+docker run --rm \
+  --env-file migrar.env \
+  hub.siu.edu.ar:5005/siu-arai/arai-usuarios/idm:$VERSION \
+  --db-initialize
+  
+export VERSION=v3.1.5
+docker run --rm \
+  --env-file migrar.env \
+  hub.siu.edu.ar:5005/siu-arai/arai-usuarios/idm:$VERSION \
+  --db-initialize
+ 
+
+2- Cambiar contraseña para el registro
+
+ADMIN_PASS=toba1234 docker stack deploy \
+    --with-registry-auth \
+    -c util/usuarios_crear_admin.yml \
+    boot
+
+3- Ver logs: 
+
+docker service logs -f --tail 100 usuarios_idp
+
+Tambien ver logs de usuarios, ya que nos dira un error de que la base de datos no se pudo conectar a la base de datos "is server sql listen on address..."
+Este error nos va a devolver una ip, ej xxx.xxx.xxx.x/24 a esta añadirla al archivo hba.conf con todas las otras
+
+nano /etc/postgresql/12/main/pg_hba.con
+>>> host   all             all              xxx.xxx.xxx.x/24               md5
+
+
+( No olvidar escribir en /etc/postgresql/12/main/postgres.conf     listen_addresses = '*' )
+
+4- Borrar el stack: 
+
+docker stack rm boot
+
+5- Desplegar el stack:
+
+docker stack deploy --with-registry-auth -c usuarios.yml usuarios
+
+docker service logs -f usuarios
+
+6- Configurar logo: 
+
+Se cambia desde la pagina de Arai-Usuarios>Aplicaciones
+
+docker stack deploy --with-registry-auth -c usuarios.yml usuarios
+
+7- Verificar que docs.env y docs.yml esten correctamente editados, modificar la siguiente linea en docs.yml:
+
+        - "traefik.http.routers.docs.rule=Host(`test-univ.universidad.edu.ar`) && ( PathPrefix(`/docs/rest/frontend`) || Path(`/docs/firmador.ph>
+        - "traefik.http.routers.docs-backend.tls=true"
+		- "traefik.http.middlewares.docs-ipwhitelist.ipwhitelist.sourcerange=127.0.0.1/32,xxx.xxx.xxx.x/24"
+        - "traefik.http.routers.docs-backend.middlewares=security-headers@file,docs-ipwhitelist"
+
+Buscar en Archivos_prod
+--docs.env--
+
+&&
+
+Buscar en Archivos_prod
+--docs.yml--
+
+
+8- Crear DB:
+
+docker stack deploy \
+    --with-registry-auth \
+    -c util/docs_crear_base.yml \
+    crear_db_docs
+
+9- Desplegar el stack:
+
+docker stack deploy --with-registry-auth -c docs.yml docs
+
+----------------------------------
+Revisar LDAP - Migrar base de datos a LDAP
+----------------------------------
+
+En DEV el ldap correcto esta en /opt/ldap_universidad
+
+El LDAP no puede correr en un Worker ni duplicado, tiene que correr si o si en un  ya que sino nos va a dar el login
+{LDAP CONNECTION ERROR: ERROR conectandose al LDAP - No se pudo autenticar al servidor LDAP;title} {LDAP CONNECTION ERROR: ERROR conectandose al LDAP - No se pudo autenticar al servidor LDAP;descr}
+https://stackoverflow.com/questions/19537319/change-basedn-in-openldap
+Y
+ldif_read_file: checksum error on "/etc/ldap/slapd.d/cn=config/olcDatabase={1}mdb.ldif"
+
+http://freshmeat.sourceforge.net/urls/5e14d6aa5e653e0db893f4b6910bd1e6
+Utilizar:
+https://emn178.github.io/online-tools/crc32_checksum.html
+
+Eliminar primeras 2 líneas de los archivos y recalcular subiendolo
+
+
+root@eei-dev-worker:/mnt/ldap_universidad# grep -Hrn "dc=siu,dc=cin,dc=edu" .
+Binary file 
+./slapd.d/cn=config/olcDatabase={1}mdb.ldif:8:olcSuffix: dc=siu,dc=cin,dc=edu
+./slapd.d/cn=config/olcDatabase={1}mdb.ldif:14:olcRootDN: cn=admin,dc=siu,dc=cin,dc=edu
+
+
+Pasos, 
+Conectar cliente, eliminar todo
+Bajar ldap
+Renombrar archivos, 
+Calcular crc32
+Levantar docker
+Importar 
+universidad-ldap-usuarios-test.ldif
+
+UPDATE sudocu.eventos SET resultado = 'anulada' WHERE id = 8607[a] 
+
+
+Cambiar de la base de datos usuarios las siguientes URLS si es que se migro de otro sitio 
+usuarios.conector_saml  usuarios.aplicaciones
+
+#desplegar ldap: docker stack deploy --compose-file docker-compose.yml ldap
+
+Levantar ldap:
+/opt/deploy/expedientes/prod/arai/ldap
+docker-compose up -d	
+
+
+TEST LDAP TEST:
+
+/opt/ldap/openldap
+docker stack deploy --with-registry-auth -c docker-compose.yml ldap
+
+---------------
+Error network ldap_backend
+---------------
+
+Docker system prune en todos los stacks
+Reiniciar los stacks
+
+---------------
+Migrar usuarios
+---------------
+
+1- update usuarios.aplicaciones, cambiar id por el de la aplicacion
+Asi tomara los Ids de la base ldap
+
+
+2- SELECT * FROM usuarios.aplicaciones;
+
+update usuarios.aplicaciones set app_unique_id = '_fd98d0c25fd7496f487908523da8317cd6bd07be88'
+where app_unique_id = '_1bca81805452667293eb2c5015bae1ae4d5ed6f80c';
+
+
+Revisar tablas que contengan:
+App_unique_id
+usuarios.aplicaciones
+usuarios.conector_oidc
+Usuarios.conector_saml
+
+
+Toba_arai_usuarios.apex_objeto_cuadro
+Toba_arai_usuarios.apex_objeto_cuadro_cc
+Toba_arai_usuarios.apex_objeto_db_registros_col
+
+-----------------------------------
+Arai Documentos
+-----------------------------------
+
+https://documentacion.siu.edu.ar/documentos/docs/instalacion-postgres/
+
+Borrar la base de datos de arai documentos, crearla de nuevo, y ejecutar 
+psql -hxxx.xxx.xxx.x -p 5432 -U postgres -d arai_documentos2 -f modelo.sql
+
+Buscar el archivo modelo.sql en --archivos prod--
+
+Esto va a cargar la base arai_documentos2 con sus respectivas tablas 
+
+-----------------------------------
+Actualizar Arai usuarios de 3.1.6 a 3.1.7
+-----------------------------------
+
+export VERSION=v3.1.7
+export VERSION_ANTERIOR=v3.1.6
+
+docker login hub.siu.edu.ar:5005
+
+docker pull hub.siu.edu.ar:5005/siu-arai/arai-usuarios/idp:$VERSION
+docker pull hub.siu.edu.ar:5005/siu-arai/arai-usuarios/idm:$VERSION
+docker pull hub.siu.edu.ar:5005/siu-arai/arai-usuarios/api:$VERSION
+
+Cambiar el numero de version en usuarios.yml
+Re-deployar y va a descargar la nueva imagen
+
+Cuando se descarga, no olvidemos poner v luego de los dos puntos
+
+docker pull hub.siu.edu.ar:5005/siu-arai/docs-api/api:v1.6.0
+-----------------------------------
+Usuario cargado con un DNI que no corresponde
+-----------------------------------
+
+Si un usuario esta cargado en la aplicacion Arai Usuarios con un DNI incorrecto:
+
+1- Se procede a informar a las areas de las cuentas asociadas (Wemes - Sudocu)
+
+2- Las areas de las cuentas pueden migrar los permisos (Wemes por ejemplo trabaja con permisos de grupos para visualizar directorios)
+
+3- Se desasocia desde Arai Usuarios al DNI incorrecto de las cuentas, pero no se elimina
+
+4- Se crea un nuevo usuario (En el ultimo caso en particular, fue creado por el departamento de sudocu) 
+
+5- Al nuevo usuario con el nuevo DNI se le asignan las cuentas correspondientes en Arai Usuarios
+
+-----------------------------------
+Recuperar el mail de configuracion - Recupero de contraseña 
+-----------------------------------
+
+Copiar tal cual esta el archivo usuarios.env en Archivos_prod, no cambiar los mails de configuracion ya que afecta el servicio de SMTP del la universidad
+
+borrar el stack de usuarios y huarpe y tirar:
+
+ADMIN_PASS=T0v9GfSqm_123 docker stack deploy \
+    --with-registry-auth \
+    -c util/usuarios_crear_admin.yml \
+    boot
+
+Volver a deployar huarpe y usuarios
+
+-----------------------------
+APIS Test:
+-----------------------------
+
+Conexion con Api Usuarios - API USUARIOS TEST
+-----------------------------
+
+https://test-univ.universidad.edu.ar/api-usuarios/v2/info
+
+u:-
+p:-
+
+
+-----------------------------
+Conexion con Api Documentos - API DOCUMENTOS TEST	
+-----------------------------
+
+https://test-univ.universidad.edu.ar/docs/rest/backend/api-docs
+para poner en diaguita en arai_documentos.ini  -- > https://test-univ.universidad.edu.ar/docs
+
+    
+u:-
+p:-
+
+
+-----------------------------
+APIS Prod:
+-----------------------------
+
+Conexion con Api Usuarios - API USUARIOS PROD
+-----------------------------
+
+https://univ.universidad.edu.ar/api-usuarios/v2/info
+
+u:-
+p:-
+-----------------------------
+Conexion con Api Documentos - API DOCUMENTOS PROD
+-----------------------------
+
+https://univ.universidad.edu.ar/docs/rest/backend/api-docs
+
+u:-
+p:-
+
+-----------------------------
+Claves de usuario: https://documentacion.siu.edu.ar/usuarios/docs/cache/guia-politicas-acceso/#claves-de-usuario
+
+-----------------------------
+
+En arai-documentos se puede migrar la base de datos desde cualquier versión a la última, en una sola ejecución.
+Es decir, se puede pasar de 1.1.2 a 1.3.3 en forma directa (usando la imagen Docker v1.3.3).
+
+-----------------------------------
+Error: No such image - No levanta usuarios
+-----------------------------------
+ 
+No levantan  algunos contenedores, esto es porque requieren el "–with-registry-auth" en el deploy 
+
+docker stack deploy --with-registry-auth -c usuarios.yml usuarios
+
+-----------------------------------
+
+Error para el propietario del sitio web 
+
+En univ2, luego de varios intentos fallidos de contraseña, nos da el siguiente error de captcha:
+Error para el propietario del sitio web 
+
+Preguntar al administraodr del captcha (usuariodemo) si tiene el sitio asignado, en caso negativo, asignarlo a los captchas y pedir las credenciales para cargarlo en usuarios.env
+
+------------------------------------------------
+
+Limites - Limits y reservations en el archivo docs.yml
+
+   limits:
+       cpus: '1'
+       memory: 4096M 
+   reservations:
+       cpus: '0.05'
+       memory: 64M
+	   
+Los limits indican el máximo de recursos que va a usar el servicio, y los reservations indican el mínimo de recursos.
+El servicio docs de arai documentos necesita extender su limits, asi como el bloque pdf y api en sudocu
+------------------------------------------------
+
+Cambiar contraseña del usuario admin
+
+ADMIN_PASS=Aqdf3wqB.-$SA2 docker stack deploy     --with-registry-auth     -c util/usuarios_crear_admin.yml     boot
+docker service logs boot_idm -f
+docker stack deploy --with-registry-auth -c usuarios.yml usuarios
+docker exec -it idm idm/bin/instalador proyecto:bootstrap --password=111.-$SA
+docker exec -it usuarios_idm idm/bin/instalador proyecto:bootstrap --password=111.-$SA
+docker exec -it usuarios_idm.1.pqr034p0y42k3vs8imnc0ppv6 idm/bin/instalador proyecto:bootstrap --password=111.-$SA
+docker exec -it usuarios_idm.1.pqr034p0y42k3vs8imnc0ppv6 bash
+systemctl status postgresql
+docker stack deploy --with-registry-auth -c docs.yml docs
+docker stack deploy --with-registry-auth -c huarpe.yml huarpe
+cd ../sudocu/
+docker stack deploy --with-registry-auth -c sudocu.yml sudoc
+
+------------------------------------------------
+
+Logs: https://documentacion.siu.edu.ar/usuarios/docs/cache/guia-solucion-de-problemas/
+
+------------------------------------------------
+
+Levantar ldap:
+/opt/deploy/expedientes/prod/arai/ldap
+docker-compose up -d
+
+------------------------------------------------
+Levantar ldap en Dev: 
+
+cd /opt/ldap/
+docker stack deploy --compose-file ldap.yml ldap
+
+------------------------------------------------
+
+Dev: hubo un problema donde no se podia ingresar con el usuario admin ni adminsudocu
+el servicio usuarios idm daba error 
+ bajar todos los stacks
+ subirlos de nuevo (verificar ldap)
+ cambiar la contrasñea del usuario admin
+ 
+-------------------------------------------------
+
+No levanta usuarios:
+
+No levanta el contenedor de usuarios, al inspeccionar mejor, me doy cuenta que el worker arrojaba un error de SHELL
+Reiniciar el worker del VmWare y deberia funcionar correctamente 
+
+-------------------------------------------------
+
+Error al levantar los contenedores relacionados con usuarios - no suitable node (scheduling constraints...)
+
+Ejecutar: 
+
+NODE_NAME=$(docker info --format '{{ .Name }}')
+docker node update --label-add cmd=usuarios $NODE_NAME
+
+-------------------------------------------------
+
+Usuario administrador: Si la contraseña se vence y el mail de recuperacion no es el correcto, cambiarlo desde el LDAP
+Si sigue sin funcionar el mail de recuperacion, es porque ya hay un mail igual en uso
+
+-------------------------------------------------
+
+Configs de stamper
+
+docker config create docs_stamper_logo /opt/expedientes/prod/arai/config/logo_nuevo.png
+
+docker secret create docs_stamper_keystore keystore_stamper.p12
+
+-------------------------------------------------
+
+Deesplegar personas 
+
+docker stack deploy --with-registry-auth -c prod/arai/personas.yml personas
+
+-------------------------------------------------
+
+Si la pantalla esta en blanco y tenemos un error de conexion a la base de datos 
+
+Db.ERROR: Error conectandose a la DB {"parametros":{"host":-","port":"-","dbname":"usuarios","username":"postgres","password":"********","schema":"usuarios","encoding":"LATIN1"},"dsn":"pgsql:host=xxx.xxx.xxx.x;port=5432;dbname=usuarios","excepcion":"
+SQLSTATE[08006] [7] could not connect to server: Connection refused\n\\tIs the server running on host \\"-\\" and accepting\n\\tTCP/IP connections on port 5432?","code":7} []\n
+
+Probalbemente haya un error en el pg_hba.conf, editarlo, recordar poner la MASK y reiniciar postgres, y los contenedores correspondientes
+
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

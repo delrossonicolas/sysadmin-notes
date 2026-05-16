@@ -1,0 +1,391 @@
+----------------------------------------------------
+Proyecto IA
+----------------------------------------------------
+
+ssh -p 2201 EMPialab001
+
+--------------------------------------
+Passwords:
+
+https://EMPialab001.linux.backend:8006/#v1:0:18:4:::::::
+root
+
+-------------------
+
+configurar contenedor 
+
+pct set 101 -net0 name=eth0,bridge=vmbr0,ip=xxx.xx.xx.xx/24,gw=xxx.xx.xx.xx
+
+--------------------------------------
+
+Instalar entoro grafico
+apt install xfce4 xfce4-goodies -y
+echo "startxfce4" > ~/.xsession
+
+apt install --reinstall xrdp
+
+mkdir -p /var/run/xrdp
+chown root:root /var/run/xrdp
+chmod 755 /var/run/xrdp
+
+borrar en /etc/xrdp/startwm.sh
+
+exec /bin/sh /etc/X11/Xsession
+y agregar
+exec startxfce4 
+
+
+adduser usuario2lab
+usermod -aG sudo usuario2lab
+
+
+--------------------------------------
+Editar fuera del contenedor
+
+Instalar versiones para la gpu
+apt remove --purge '^nvidia.*'
+apt install nvidia-driver-570-server
+
+En el proxmox ejecutar
+find /usr -name "libnvidia-ml.so*" | grep 570
+
+nano /etc/pve/lxc/101.conf
+
+lxc.mount.entry: /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.570.124.06 usr/lib/x86_64-linux-gnu/libnvidia-ml.so.570.124.06 none bind,ro,create=file
+lxc.mount.entry: /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.570.124.06 usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1 none bind,ro,create=file
+
+--------------------------------------
+
+Ajustar librerias dentro del contenedor
+
+ls -l /usr/lib/x86_64-linux-gnu/libnvidia-ml.so*
+rm /usr/lib/x86_64-linux-gnu/libnvidia-ml.so
+rm /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1
+ln -s /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.570.124.06 /usr/lib/x86_64-linux-gnu/libnvidia-ml.so
+ln -s /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.570.124.06 /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1
+
+Hacer lo mismo con la 2da placa
+
+-------------------
+Instalar Drivers
+
+sudo nvidia-xconfig
+sudo apt install nvidia-driver
+sudo Xorg -config /etc/X11/xorg.conf
+nano /etc/X11/xorg.conf
+sudo apt install nvidia-driver
+sudo add-apt-repository ppa:graphics-drivers/ppa
+sudo apt update
+sudo apt install nvidia-driver-460
+
+nvidia-smi
+
+
+-------------------
+Instalar firefox
+
+
+apt update && apt upgrade -y
+
+
+sudo apt install x11-xserver-utils
+
+-------------------
+Dejar apparmor en 0
+
+[82569.820049] audit: type=1400 audit(1745338511.702:30724): apparmor="DENIED" operation="create" class="net" namespace="root//lxc-101_<-var-lib-lxc>" profile="firefox" pid=395741 comm=444E53205265736F6C766572202334 family="inet" sock_type="dgram" protocol=0 requested="create" denied="create"
+
+[81194.646124] audit: type=1400 audit(1745337136.512:30394): apparmor="DENIED" operation="create" class="net" namespace="root//lxc-101_<-var-lib-lxc>" profile="firefox" pid=395741 comm=444E53205265736F6C766572202331 family="inet" sock_type="dgram" protocol=0 requested="create" denied="create"
+
+root@EMPialab001:~# cat /etc/kernel/cmdline 
+
+root=ZFS=rpool/ROOT/pve-1 boot=zfs loglevel=6 nomodeset apparmor=0
+
+-------------------
+Ver mas distros:
+
+https://pve.proxmox.com/wiki/Linux_Container
+
+--------------------------------------
+
+Alma:
+
+Crear config de red
+
+2) Hacerlo persistente con NetworkManager (recomendado)
+Asegurate de que NetworkManager esté instalado y activo
+
+bash
+Copy
+Edit
+systemctl enable --now NetworkManager
+Crea la conexión para eth0 con NMCLI
+
+bash
+Copy
+Edit
+nmcli connection add \
+  type ethernet \
+  con-name eth0 \
+  ifname eth0 \
+  autoconnect yes \
+  ip4 xxx.xx.xx.xx/16 \
+  gw4 xxx.xx.xx.xx \
+  ipv4.dns "8.8.8.8 1.1.1.1"
+Activa la conexión
+
+bash
+Copy
+Edit
+nmcli connection up eth0
+Verificá
+
+bash
+Copy
+Edit
+nmcli device show eth0
+ip a show eth0
+ping -c 3 8.8.8.8
+A partir de ahora, cada vez que arranque el contenedor NetworkManager levantará eth0 con los parámetros que le definiste.
+
+--------------------------------------
+
+Instalar drivers 
+root@entregabilidad:~# history
+    1  ls
+    2  ping google.com
+    3  ls /dev | grep nvidia
+    4  sudo apt update
+    5  sudo apt install -y software-properties-common
+    6  sudo add-apt-repository ppa:graphics-drivers/ppa
+    7  sudo apt update
+    8  nvidia-smi
+    9  #sudo apt install -y nvidia-driver-570
+   10  apt search nvidia-driver
+   11  clear
+   12  find /usr/lib -type l -lname '*nvidia*'
+   13  ln -s libnvidia-ml.so.570.124.06 /usr/lib/x86_64-linux-gnu/libnvidia-ml.so.1
+   14  ln -s libnvidia-ml.so.1 /usr/lib/x86_64-linux-gnu/libnvidia-ml.so
+   15  nvidia-smi
+   16  sh NVIDIA-Linux-x86_64-570.124.06.run --extract-only
+   17  apt update
+   18  apt install rpm2cpio cpio -y
+   19  wget https://us.download.nvidia.com/tesla/570.124.06/nvidia-driver-local-repo-rhel8-570.124.06-1.0-1.x86_64.rpm
+   20  rpm2cpio nvidia-driver-local-repo-rhel8-570.124.06-1.0-1.x86_64.rpm | cpio -idmv
+   21  find . -name nvidia-smi
+   22  nvidia-smi
+   23  find . -name nvidia-smi
+   24  cd /usr/bin/
+   25  ls
+   26  clear
+   27  ls
+   28  ll
+   29  cd ..
+   30  find . -name nvidia-smi
+   31  ./var/nvidia/nvidia-driver-local-repo-rhel8-570.124.06/nvidia-driver-570.124.06-1.el8.x86_64.rpm
+   32  rpm2cpio ./var/nvidia/nvidia-driver-local-repo-rhel8-570.124.06/nvidia-driver-570.124.06-1.el8.x86_64.rpm | cpio -idmv
+   33  clear
+   34  nvidia-smi
+   35  apt install nvidia-utils-470 
+   36  sudo apt install nvidia-driver
+   37  sudo add-apt-repository ppa:graphics-drivers/ppa
+   38  sudo apt install nvidia-driver-460
+   39  nvidia-smi
+   40  ping google.com
+   41  reboot
+   42  clear
+   43  nvidia-smi
+   44  history
+--------------------------------------
+
+crear backup
+ vzdump 102
+
+--------------------------------------
+Descargar vnc y ejecutar 
+
+https://cfhcable.dl.sourceforge.net/project/tigervnc/stable/1.15.0/tigervnc-1.15.0.x86_64.tar.gz?viasf=1
+
+./x0vncserver -PasswordFile ~/.vnc/passwd -SecurityTypes VncAuth,TLSVnc
+
+./x0vncserver -PasswordFile ~/.vnc/passwd -SecurityTypes None
+--------------------------------------
+
+Bridge ports enp6s0 es donde corre la interfaz fisica
+
+--------------------------------------
+Crear archivo escritorio
+nano ~/.local/share/applications/vncserver.desktop
+
+
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=VNC Server
+Exec=/root/Downloads/tigervnc-1.15.0.x86_64/usr/bin/x0vncserver -PasswordFile /root/.vnc/passwd -SecurityTypes None
+Icon=computer
+Terminal=true
+Categories=Utility;
+
+chmod +x ~/.local/share/applications/vncserver.desktop
+
+
+buscarlo en las apps
+
+--------------------------------------
+
+ejecutar vnc
+
+vncviewer
+
+--------------------------------------
+si se traba proxmox
+
+rm -rf /var/lock/qemu-server/*
+
+--------------------------------------
+
+ VM (no borrar)
+ 
+Machine => q35
+BIOS => OVMF (UEFI)
+La placa se la pasé con "all functions, y PCIe habilitado"
+
+
+
+
+WARN: no efidisk configured! Using temporary efivars disk.
+TASK WARNINGS: 1
+
+--------------------------------------
+
+Configurar vpn
+
+printf "nuevaClave456\n" | ./vncpasswd -f > ~/.vnc/passwd
+chmod 600 ~/.vnc/passwd
+
+--------------------------------------
+
+Configurar firewall
+
+sudo ufw allow ssh
+sudo ufw allow 5901/tcp
+sudo ufw enable
+
+sudo ufw status
+
+--------------------------------------
+
+Rezise disk en proxmox
+
+https://pve.proxmox.com/wiki/Resize_disks
+
+
+--------------------------------------
+Script - script
+
+nano /etc/init.d/vfio-gpu-bind.sh
+
+update-rc.d vfio-gpu-bind.sh defaults
+update-initramfs -u
+reboot
+
+--------------------------------------
+Instalacion de ubuntu desktop 
+
+   53  2025-05-13 18:13:50 apt install xubuntu-desktop
+   54  2025-05-13 18:23:27 sudo apt update && sudo apt upgrade -y
+   55  2025-05-13 18:24:04 reboot
+   56  2025-05-13 18:18:36 clear
+   57  2025-05-13 18:18:40 ip a
+   58  2025-05-13 18:18:45 sudo systemctl restart snapd
+   59  2025-05-13 18:24:54 clear
+   60  2025-05-13 18:26:54 sudo lsof -i :5900
+   61  2025-05-13 18:27:13 sudo lsof -i :3389
+   62  2025-05-13 18:28:29 sudo apt update
+   63  2025-05-13 18:28:35 sudo apt install xubuntu-desktop -y
+   64  2025-05-13 18:28:40 sudo apt install xrdp -y
+   65  2025-05-13 18:29:29 sudo adduser usuario2
+   66  2025-05-13 18:30:30 sudo -u usuario2 bash -c 'echo "startxfce4" > ~/.xsession'
+   67  2025-05-13 18:30:50 sudo chown usuario2:usuario2 /home/nombreusuario/.xsession
+   68  2025-05-13 18:30:58 sudo chown usuario2:usuario2 /home/usuario2/.xsession
+   69  2025-05-13 18:31:03 sudo systemctl restart xrdp
+   70  2025-05-13 18:31:09 sudo ufw allow 3389/tcp
+
+Se puede accedor por REMMINA al usuario
+   
+   71  2025-05-13 18:31:14 ip a
+   72  2025-05-13 18:41:08 nano /home/usuario2/Desktop/lmstudio.desktop 
+   73  2025-05-13 18:41:37 chmod +x /home/usuario2/Desktop/lmstudio.desktop 
+   74  2025-05-13 18:41:43  ll/home/usuario2/Desktop/lmstudio.desktop 
+   75  2025-05-13 18:41:46  ll /home/usuario2/Desktop/lmstudio.desktop 
+   76  2025-05-13 18:42:54 clear
+   77  2025-05-13 18:43:31 nvidia-smi
+   78  2025-05-13 18:43:46 lspci | grep -i nvidia
+   79  2025-05-13 18:44:07 sudo add-apt-repository ppa:graphics-drivers/ppa
+   80  2025-05-13 18:44:28 history
+
+sudo add-apt-repository ppa:graphics-drivers/ppa
+sudo apt update
+
+
+sudo apt install nvidia-driver-470 -y
+sudo usermod -aG video nombreusuario
+cerrar sesion
+
+usuario2: nvidia-smi
+
+Funciona
+
+--------------------------------------
+
+Editar, para que esto persista en el reinicio
+
+✅ 2. Bloquear acceso desde WAN (enp6s0) hacia backend (xxx.xx.xx.xx/16)
+Esto evita que alguien entrando por WAN pueda ver tu backend:
+sudo ufw deny in on enp6s0 to xxx.xx.xx.xx/16
+Y si querés bloquear también salidas desde WAN hacia backend:
+sudo ufw deny out on enp6s0 to xxx.xx.xx.xx16
+
+2. Bloquear tráfico saliente del usuario hacia la red backend (ej. xxx.xx.xx.xx/16)
+
+sudo iptables -A OUTPUT -d xxx.xx.xx.xx/16 -m owner --uid-owner 1001 -j REJECT
+
+--------------------------------------
+
+Agregar una placa de red:
+
+editar (tomar como referencia EMPialab001)
+
+ mcedit /etc/netplan/99_config.yaml 
+ 
+ revisar con 
+ ethtool enp6s0
+ 
+ si esta disponible el link detected:
+ Link detected: yes
+ 
+ Si dice que no, avisar a noc que conecte el cable de red 
+ 
+--------------------------------------
+
+root@EMPialab001:~# ip route del default
+root@EMPialab001:~# ip route add default via xxx.xx.xxx.xx dev enp6s0
+
+--------------------------------------
+actualizar DNS
+[root@pdns01 ~] # mysql pdns
+mysql> update records set content='xxx.xx.xxx.xx' where id='177727826' limit 1;
+
+
+--------------------------------------
+
+
+iptables -I INPUT 3 -p tcp --dport 3389 -j ACCEPT
+iptables -D INPUT 3
+
+
+proxmox instancias individuales
+./LM-Studio-0.3.14-5-x64.AppImage --user-data-dir=/tmp/lmstudio-test --no-sandbox
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

@@ -1,0 +1,385 @@
+----------------------------------------------------
+Nginx
+----------------------------------------------------
+Proxy:
+
+Servidor--->Proxy--->Internet
+
+Proxy reverso:
+
+Servidor<---Proxy<---Internet
+
+Utiliza el puerto 80 y el 443
+
+apt-get install nginx
+
+Los archivos de configuracion estan generalmente en el directorio /etc/nginx
+sites-enabled
+sites-avaliable
+
+En sites-avaliable: 
+copiar el archivo default
+cp default usuario.univ
+
+------------------------------
+nano usuario.univ (la copia del default)
+
+cambiar
+1- server_name_  por
+server name sitio (univ.edu.ar)
+
+2- root es donde esta nuestro sitio
+root/var/www/univ
+
+3- listen 80 default server ;
+solo podemos tener un archivo con default server, solo borrar "default server". Sino el reload va a dar error
+
+------------------------------
+
+Pasar a activado los sitios
+
+En sites-enabled creamos un link simbolico
+ln -s ../sites-avaliable/usuario.univ
+
+ngnix -s reload
+
+------------------------------
+
+editar /etc/hosts
+
+-----------------------------
+
+Configurarlo como proxy para llevar el trafico a nuestros servidores:
+https://youtu.be/fVM658GMbTo
+
+Editar nuestro archivo de configuracion usuario.univ
+
+editar dentro de location /app {
+
+proxy_pass http://backend
+}
+
+nginx -t (verifica la sintaxis)
+systemctl restar nginx
+
+al ir a univ.universidad.edu.ar/app
+
+------------------------------
+
+Añadir upstream para balancear la carga
+
+Editar ngninx.conf. Por defecto va a mandar el trafico uno a uno, siendo los dos servidores iguales, asi balancea la carga
+
+Agregar el bloque upstream backend (tiene que ir dentro del bloque http, tambien puede ir dentro de la carpeta conf.d. 
+pero para eso hay que descomentar la linea 
+        include /etc/nginx/conf.d/*.conf;
+        # Incluye todos los archivos .conf dentro de conf.d)
+
+
+upstream backend (NOMBRE DE EJEMPLO) {
+  server x.x.x.x;
+  server y.y.y.y;
+}
+
+server {
+  server_name midominio.com;
+  location /app {
+    proxy_pass http://backend;
+  } 
+}
+
+nginx -t (verifica la sintaxis)
+systemctl restart nginx
+
+------------------------------
+Ej:
+
+Hacer una redireccion roudrobin con el archivo de configuracion de nginx - (xxxx.xxxx.xxx)
+
+1- /etc/nginx/sites-enabled Va a contener un link simbolico con el nombre del slitio (test-cursos.campusvirtualuniversidad.edu.ar )  a  ../sites-available/test-cursos.campusvirtualuniversidad.edu.ar 
+
+2-/etc/nginx/sites-enabled Va a contener un link simbolico con el nombre default  a  ../sites-available/default 
+
+3- En el archivo nginx.conf, agregar la sigueintes lineas
+
+        upstream campusvirtual{
+                server xxxx.xxxx.xxx ;#weight=3
+                server xxxx.xxxx.xxx;
+        }
+		
+4- Siendo Weigth=3, la opcion que manda 3 peticiones al 173 y una al 174, 3 a 1
+
+5- Entrar hacia donde queremos hacer el redirect y con el siguiente comando podemos ver si entra o no: tcpdump -i any -nn port 80
+
+6- Editar el archivo hosts en mi pc para probar sin pedir el dominio
+
+7- nginx -t (verifica la sintaxis)
+systemctl restar nginx
+
+------------------------------
+
+Hay un sitio x que cada tanto pide carla reiniciar el p2m porque se cae el proxy reverso, hay que añadir estos comandos debajo de ServerAdmin webmaster@xxx apartado 443
+en a.edu.ar.vhost
+
+ProxyRequests Off
+ProxyPreserveHost On
+ProxyPass /api http://127.0.0.1:5000/api
+ProxyPassReserve /api http://127.0.0.1:5000/api
+
+---------------------------------------
+
+
+Crear un proxy con Nginx en Ubuntu :
+ 
+Paso 1: Instalación de Nginx
+
+    Actualizar los paquetes del sistema:
+
+sudo apt update
+sudo apt upgrade
+
+Instalar Nginx:
+    sudo apt install nginx
+
+Paso 2: Configuración del Proxy
+
+    Crear un archivo de configuración para tu proxy:
+
+    Puedes crear un archivo de configuración en el directorio /etc/nginx/sites-available/. Por ejemplo, crea un archivo llamado mi-proxy:
+
+sudo nano /etc/nginx/sites-available/mi-proxy
+
+Agregar la configuración del proxy:
+
+nginx
+
+server {
+    listen 80;
+
+    server_name tu_dominio.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;  # Reemplaza con la URL de tu aplicación backend
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+Guarda y cierra el archivo.
+
+Crear un enlace simbólico en el directorio sites-enabled:
+
+sudo ln -s /etc/nginx/sites-available/mi-proxy /etc/nginx/sites-enabled/
+
+Probar la configuración de Nginx:
+
+sudo nginx -t
+
+Reiniciar Nginx para aplicar los cambios:
+
+    sudo systemctl restart nginx
+
+Paso 3: Configuración Adicional
+
+Si estás utilizando HTTPS, necesitarás configurar SSL en tu servidor Nginx. Aquí tienes un ejemplo de cómo hacerlo utilizando Let's Encrypt:
+
+    Instalar Certbot y el complemento de Nginx:
+
+sudo apt install certbot python3-certbot-nginx
+
+Obtener el certificado SSL:
+
+    sudo certbot --nginx -d tu_dominio.com -d www.tu_dominio.com
+
+    Seguir las instrucciones en pantalla para completar la instalación del certificado SSL.
+
+Paso 4: Verificación
+
+Finalmente, verifica que tu configuración funciona correctamente accediendo a tu dominio en un navegador web. Deberías ver que las solicitudes se están proxy pasando correctamente a tu backend.
+Resumen
+
+    Instala Nginx.
+    Crea y configura un archivo de configuración en /etc/nginx/sites-available/.
+    Crea un enlace simbólico en /etc/nginx/sites-enabled/.
+    Prueba la configuración y reinicia Nginx.
+    (Opcional) Configura SSL con Certbot.
+
+Siguiendo estos pasos, deberías tener un proxy inverso funcional utilizando Nginx en Ubuntu.
+
+-----
+
+En el paso 2, la IP que debes especificar en la directiva proxy_pass es la IP o el hostname del servidor backend al que deseas redirigir el tráfico. No es la IP del dominio del proxy, sino la dirección del servidor donde tu aplicación backend está ejecutándose.
+
+Por ejemplo, si tu aplicación backend está ejecutándose en un servidor local en el puerto 3000, usarías http://127.0.0.1:3000. Si tu backend está en otro servidor, deberías usar la IP o el dominio de ese servidor. Aquí tienes un ejemplo más claro:
+Ejemplos:
+
+    Aplicación backend en el mismo servidor que Nginx:
+
+    nginx
+
+location / {
+    proxy_pass http://127.0.0.1:3000;  # La aplicación backend está en el mismo servidor, en el puerto 3000
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+Aplicación backend en un servidor remoto:
+Supongamos que tu backend está en un servidor con la IP xxxx.xxxx.xxx y en el puerto 4000:
+
+nginx
+
+location / {
+    proxy_pass http://xxxx.xxxx.xxx:4000;  # La aplicación backend está en un servidor remoto, en el puerto 4000
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+
+
+---------------------------------------------
+
+
+
+Instalar proxy reverso
+
+sudo apt install nginx
+
+cd /etc/nginx/sites-available/
+touch proxyconicet
+
+-----------
+
+    listen 80;
+    server_name testportal.universidad.edu.ar;
+
+    # Redirigir todas las solicitudes HTTP a HTTPS
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name testportal.universidad.edu.ar;
+
+    ssl_certificate /opt/certificados/wildcard_universidad.edu.ar.crt;
+    ssl_certificate_key /opt/certificados/wildcard_universidad.edu.ar.key;
+
+    location / {
+        proxy_pass https://usuario;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+
+Editar el archivo hosts si el proxy no esta apuntado
+
+-------------------------------------------------------
+
+Si el proxy reverso lo queremos para un dominio con varias IP, editar:
+
+nginx.conf:
+Agregar estas lineas al bloque http
+
+http {
+        limit_conn_zone $binary_remote_addr zone=addr:10m;
+        include /etc/nginx/conf.d/*.conf;
+        # Incluye todos los archivos .conf dentro de conf.d
+
+        # Incluir la configuración de los sitios habilitados
+        include /etc/nginx/sites-enabled/*;
+        ##
+        # Basic Settings
+        ##
+
+Esto habilita la configuracion en conf.d, que es la sigueinte, y es llamada en el sites avaliable:
+
+En /etc/nginx/conf.d
+
+touch upstreams.conf
+
+
+upstream usuario {
+    server 10.1.100.51;
+    server 10.1.100.50;
+}
+
+
+Configurando como balanceador de carga quedaria:
+
+upstream backend {
+    server 10.1.100.51 weight=3;
+    server 10.1.100.52 weight=1;
+}
+
+-------------------------------------------------------
+
+Limitar carga en Nginx:
+
+#limit_conn_zone $binary_remote_addr zone=perip:10m;
+
+limit_conn_zone $server_name zone=perserver:10m;
+
+#limit_conn_zone $binary_remote_addr$remote_port zone=addr_port:10m;
+
+
+La carga se limita no en el proxy reverso, sino en donde esta el sitio. El proxy tiene que dejar pasar a todos
+
+#       limit_conn perip 10;
+        limit_conn perserver 2;
+
+-------------------------------------------------------
+
+Instalar proxy reverso
+
+sudo apt install nginx
+
+cd /etc/nginx/sites-available/
+touch proxyconicet
+
+-----------
+
+    listen 80;
+    server_name testportal.universidad.edu.ar;
+
+    # Redirigir todas las solicitudes HTTP a HTTPS
+    return 301 https://$host$request_uri;
+}
+
+upstream backend {
+    server 10.1.100.51;
+    server 10.1.100.52;
+}
+
+server {
+    listen 443 ssl;
+    server_name testportal.universidad.edu.ar;
+
+    ssl_certificate /opt/certificados/wildcard_universidad.edu.ar.crt;
+    ssl_certificate_key /opt/certificados/wildcard_universidad.edu.ar.key;
+
+    location / {
+        proxy_pass https://backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+
+
+cd sites-enabled
+sudo ln -s /etc/nginx/sites-available/proxyconicet /etc/nginx/sites-enabled/
+
+sudo nginx -t
+
+Editar el archivo hosts si el proxy no esta apuntado
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

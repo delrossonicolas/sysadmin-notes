@@ -1,0 +1,1196 @@
+------------------------------------------
+LINUX - Ubuntu 20.04
+------------------------------------------
+
+Ayuda: https://blog.desdelinux.net/mas-de-400-comandos-para-gnulinux-que-deberias-conocer/
+  
+Cambiar contraseña: passwd nombre_usuario
+Crear Archivo: echo  
+
+Descargar: Wget https://github.com/prometheus/prometheus/releases/download/v2.31.1/prometheus-2.31.1.linux-amd64.tar.gz
+
+Obtener manual de un comando: man COMANDO  o  tldr COMANDO
+man cat
+apt install tldr
+tldr cat
+
+Buscar servicio: ps aux | grep postgres 
+Buscar Logs Generale: grep -ir "test-univ.universidad.edu.ar" *
+Buscar comando: ctrl + r
+
+Busca dentro de los archivos:grep -ir 'captcha' 
+Contar archivos: du -a | cut -d/ -f2 | sort | uniq -c | sort -nr
+Ir a la posicion del archivo - json: vi archivo.txt ---> goto 1234
+-i: Hacer la busqueda de grep insensible a mayusculas
+
+Encontrar archivos en un directorio: find /var/lib/nuxeo/data/binaries/data/ -type f | wc -l
+Encontrar archivos en un rango de fechas en el directorio: find /var/lib/nuxeo/data/binaries/data/ -type f -newermt "2022-06-30 16:20:38" ! -newermt "2022-06-30 16:20:38" -ls
+find . -name 'usuarios_verificar.y*'
+
+Copia todo desde usuario a usuario2: echo usuario >> usuario2
+
+Estado de un servicio: systemctl status servicio 
+Restartear postgres: systemctl restart postgresql.service
+
+Dar todos los permisos a un directorio: chmod -R 777 /carpeta 
+Dar permisos de ejecucion a un archivo: chmod ugo+rwx NombreAr  chivo 
+Cambiar permisos: chown -R www-data /var/www/html/git 
+
+Saber ip: dig koha-fodonto-intra.universidad.edu.ar
+Listar puertos: netstat -npl
+
+Lista de upgrade / update: nano /etc/apt/sources.list.d/pgdg.list
+Lista procesos web: ps -ef | grep client2
+Lista procesos web: ps -ef | grep web4 
+Copia a un servidor externo: scp -r espanol.tar.gz universidadingreso@AAA:/tmp 
+
+Verificar pagina: curl toba3-dev.universidad.edu.ar:443 
+Verificar pagina login: curl -k -v --anyauth -u '<user>:<pass>' 'https://usuarios.uner.edu.ar/api/v1/aplicaciones'
+Verificar si el certificado intermedio/bundle Intermediate.crt funciona: openssl s_client -connect toba3-dev.universidad.edu.ar:443
+
+Renombrar: mv carpeta/ old_carpeta/ 
+Borrar carpeta: rm -r
+
+instalar: sudo apt get install programa
+desinstalar: sudo apt-get --purge remove [nombre del programa] -> Borra todos los archivos de configuracion
+
+apt-get remove --purge redis
+apt autoremove
+
+Actualizar mlocate: updatedb
+
+Enumerará toda la información del archivo debajo del archivo, incluidos los archivos ocultos (ej. git): ll
+Solo enumera los archivos explícitos y fecha: ls -lah 
+
+Ver logs en tiempo real: tail -f  /var/log/apache2/error.log
+ 
+Ver la version de un programa: programa --version 
+loki --version
+
+Localizar * = Todo lo que tenga antes: locate *.log 
+
+Ver espacio en disco: df -h
+Ver el espacio ocupado de cada archvo en el directorio actual: du -bsh *
+Ver el espacio ocupado de cada archvo en el directorio actual: du -skh ./* 
+Peso: du -hx
+
+Cerrar un puerto / Eliminar pueto en uso: 
+
+Nos devuelve un numero de proceso que usa el puerto: fuser -n tcp 9090 
+kill -9 NUMERODEPROCESO
+
+Crear un nuevo comando: 
+alias ll='ls -al'
+alias
+
+Encontrar procesos zombies: ps axo pid=,stat= 
+
+Los archivos de configuracion en Ubuntu generalmente se encuentran en el directorio /etc
+
+-----------------------------------------------
+
+Consultas CMIS
+SELECT * FROM cmis:document
+SELECT * FROM Recurso order by cmis:creationDate
+
+-----------------------------------------------
+
+Borrar una carpeta que, al querer borrarla, dice operation not permited
+
+chmod ugo+w .
+
+chattr -i -a .
+
+-----------------------------------
+
+Path para saber que proceso usa un determinado directorio directorio 
+
+lsof +D /var/www/clients/client1/web1/ 
+
+----------------------------------
+Ver logs de Apache
+----------------------------------
+   
+cd /var/log/apache2
+cat error.log
+
+openssl s_client -connect toba3-dev.universidad.edu.ar:443
+curl toba3-dev.universidad.edu.ar:443
+
+------------------
+Actualizar sistema operativo
+------------------
+
+Actualizar: sudo apt update 
+Descargar paquetes: sudo apt upgrade
+reboot
+
+apt-get update && apt upgrade -y
+
+------------------
+Kernel Panic
+------------------
+
+>Abrir desde consola remota de VmWare el servidor
+
+apt-get dist-upgrade
+apt-get autoremove
+sudo apt --fix-broken install
+apt-get install --reinstall linux-image-generic linux-image
+apt-get dist-upgrade
+reboot
+cd /root/
+ls
+reboot
+ 
+>Abrir desde consola remota de VmWare el servidor
+
+# Verificación inicial
+df -hv
+dpkg -l | grep image
+cat /proc/version
+
+# Eliminación de versiones antiguas del kernel
+apt-get purge linux-image-5.4.0-88-generic
+apt-get purge linux-image-5.4.0-89-generic
+apt-get purge linux-image-5.4.0-94-generic
+apt-get purge linux-image-5.4.0-96-generic
+apt-get purge linux-image-5.4.0-97-generic
+apt-get purge linux-image-5.4.0-99-generic
+apt-get purge linux-image-5.4.0-91-generic
+apt-get purge linux-image-5.4.0-92-generic
+apt-get purge linux-image-unsigned-5.4.0-97-generic
+apt-get purge linux-image-unsigned-5.4.0-99-generic
+
+# Limpieza de Docker
+docker system prune
+
+# Actualizaciones del sistema
+apt-get update
+apt-get dist-upgrade
+apt autoremove
+apt-get upgrade
+
+# Instalación de un nuevo kernel, esto descarga un script y lo instala
+wget https://raw.githubusercontent.com/pimlie/ubuntu-mainline-kernel.sh/master/ubuntu-mainline-kernel.sh
+sudo install ubuntu-mainline-kernel.sh /usr/local/bin/
+ubuntu-mainline-kernel.sh -i
+
+# Reinstalación de un kernel específico
+apt-get --reinstall linux-image-5.4.0-99-generic
+
+# Reinicio del sistema
+reboot
+
+# Post-reinicio
+ps -ef
+kill -9 21524
+init 0
+
+Eliminación de kernels antiguos, limpieza del sistema, actualización e instalación de un nuevo kernel, verificacion y reinicio del sistema.
+
+
+------------------
+Tunnel
+------------------
+
+Tunnel: Hacer para abrir un aplicativo, ej portainer desde una ip publica, usando nuestro localhost
+
+abrir sesion en el putty a la ip publica
+click derecho en la ventana, tunnels
+forwarder port: 9000
+from: 127.0.0.1:9000
+APPLY
+
+Ahora se podria entrar al portainer desde el navegador web
+
+------------------
+Comprobar conexion con telnet 
+------------------
+
+telnet DIRECCION.IP/DOMINIO PUERTO
+telnet hub.siu.edu.ar 5005
+
+------------------
+Broken packages
+------------------
+
+https://askubuntu.com/questions/140246/how-do-i-resolve-unmet-dependencies-after-adding-a-ppa
+
+nano /etc/apt/sources.list.d/*
+
+Borrar todo
+
+------------------
+Tunnel Remoto
+------------------
+
+Marcar tunnel remoto
+
+Local server: 127.0.0.1
+Local port: 22
+
+SSH Server= test-univ.universidad.edu.ar
+SSH Port= 22
+ = root
+ 
+Forwarded Port: 5432
+
+Destination  test-univ.universidad.edu.ar:22
+
+------------------
+Comprimir y descomprimir
+------------------
+
+tar -czf archivo.tar.gz Archivo1 Archivo2
+tar -zxvf achivo.tar.gz -C /home/ExtractedFiles/
+
+sudo apt install zip && sudo apt install unzip
+
+zip ARCHIVO.zip Archivo1.txt Archivo2.txt Archivo3.txt
+unzip ARCHIVO.zip
+
+zip -r comprimido.rar /usuario
+unzip
+
+------------------
+Instalacion - Habilitar el login del usuario root
+------------------
+
+1- nano /etc/ssh/sshd_config
+
+2- Descomentar la linea y editarla
+
+ de: #PermitRootLogin XXXXX
+ a:  PermitRootLogin yes
+
+3- systemct restart ssh
+
+------------------
+Instalacion - cambiar ip
+------------------
+
+Editar IP's Ubuntu - Cambiar ip - DNS: nano /etc/netplan/00-installer-config.yaml...
+netplan apply
+Cambiar la Red en el Vmware
+
+----------------------
+Cambiar hora
+----------------------
+
+sudo dpkg-reconfigure tzdata
+
+date --set "11 FEB 2022 08:42:40"
+--o--
+sudo apt-get install ntp
+ntpdate -u time.afip.gov.ar 
+
+hwclock -w (guarda en la bios)
+
+Cambiar zona horaria:
+ln -s /usr/share/zoneinfo/America/Buenos_Aires /etc/localtime
+
+
+conexion
+
+tcpdump -i any -nn port 80
+
+-----------------------------------
+Cambiar Zona Horaria
+-----------------------------------
+
+sudo dpkg-reconfigure tzdata
+
+timedatectl
+timedatectl set-ntp false
+timedatectl set-ntp true
+
+Buenos_Aires
+
+date --set "15 FEB 2022 08:44:40"
+
+sudo systemctl restart systemd-timesyncd.service
+
+------------------
+Contar archivos
+------------------
+
+du -a | cut -d/ -f2 | sort | uniq -c | sort -nr | grep "CARPETA" | head -1 | awk 'NF{print $1}'
+
+------------------
+Error al actualizar apt - update 'is configured multiple times in /etc/apt/sources'
+------------------
+
+Entrar a /etc/apt/sources.list
+
+Borrar / comentar las ultimas lineas
+
+------------------
+Recomendaciones para crear una vritual
+------------------
+
+Swap: Depende de la ram
+
+4GB RAM = 2GB SWAP
+4-16 GB RAM = 4GB SWAP
+16-20 GB RAM = 8GB SWAP
+
+Boot: 2GB 
+
+------------------------------------------------
+VIM
+------------------------------------------------
+
+sudo apt-get update
+sudo apt-get install vim 
+
+vi archivo.txt
+(Presionar inster para editar)
+(Presionar inster para salir del editor)
+(Presionar escape)
+:wq / x! / ZZ  (Guardar y salir)
+:q (Sale sin guardar)
+
+--------------------------------------------------
+Midnigth commander
+--------------------------------------------------
+sudo apt-get install mc
+
+mc / mc -b
+f10: para salir
+----------------------
+Editar Ip: 
+----------------------
+
+(En las Ip's publicas se escribe IP/25)
+
+1- cd /etc/netplan/00-installer-config.yaml...
+2- netplan apply
+3- reboot
+
+-----------------------------------
+Conectarse a un escritorio remoto desde  Windows
+-----------------------------------
+
+1- Ejecutar
+
+2- mstsc
+
+3- Conectar
+
+-----------------------------------
+Agregar espacio en disco a una maquina virtual - G parted
+-----------------------------------
+
+1- Descargar en MI PC el .iso Gparted
+
+2- En el VMware hacemos click derecho en la maquina virtual y le añadimos mas espacio en disco, si no nos deja es porque hay un SNAPSHOT
+
+3- Apagamos el postgres de la pc 
+
+4- Apagamos la maquina virtual y encenderla
+
+5- Arrancar desde el iso, en las opciones VMRC
+
+6- Configurar la Bios para que el menu de arranque seleccione el ISO (Entrar a la bios con F2 y subir con la tecla '+' el CD ROM)
+
+7- Seleccionamos el idioma > Standard > Standard > 33 > 0
+
+8- Entramos al icono de herramientas 
+
+9- Seleccionamos el disco /dev/sda y hacemos click derecho en la particion, para luego arrastrar el disco y usar todo el 'unused space' 
+Quizas tengamos que borrar la swap para que podamos apmpliar el disco, crear una swap nueva
+Quizas nos de error al primer intento, esto se soluciono re-asignando el espacio nuevamente
+Nos va a surgir una advertencia de data loss, hacer caso omiso
+
+10- Apagamos el gparted, desmontamos y reiniciamos todo
+
+-----------------------------
+Crear un nuevo servidor - Instalar nuevo servidor 
+-----------------------------
+
+Ejemplo de sitios:
+
+Instalar una maquina virtual en una IP publica, en la red xxx.xx.xxx.xx 2GB Boot 4BGSwap
+subnet xxx.xx.xxx.xx.ipcalc/
+
+Ejemplo de portalesX:
+
+2GB Boot 4BGSwap
+130GB Aprox
+
+Permitir acceso usuario root : 
+	vi /etc/ssh/sshd_config
+		PermitRootLogin without-password --> PermitRootLogin yes
+	cambiamos passwd: 	sudo -i  -->  passwd root (enter e ingresamos la nueva password)
+	reiniciamos servicio ssh: service ssh restart
+	 
+-----------------------------------
+Generar link simbolico
+-----------------------------------
+
+Para todo lo que apunte al directorio en el que estamos ubicados ahora apunte al directorio destino
+
+Apagar el postgres (por ejemplo)
+
+ln -s /DESTINO Nombre
+
+ln -s /opt/postgresql postgresql
+
+ln -s /nuxeo/data data 
+
+Encender el postgres
+
+-----------------------------------
+
+Centos
+
+systemctl en centos
+
+/etc/init.d/NOMBRE_DEL_SERVICIO status
+
+O
+
+services postgresql restart
+
+-----------------------------------
+
+Apache Not found the requested url 
+https://marsbot.space/solucion-a-not-found-the-requested-url-about-was-not-found-on-this-server-apache/
+ 
+Editar la siguiente linea en la configuracion del sitio
+
+    AllowOverride None 
+	-por-
+    AllowOverride All
+ 
+a2enmod rewrite
+systemctl restart apache2
+-----------------------------------
+
+No puedo ingresar por terminal, pero si por remote console
+
+Habilitar mi IP por ufw:
+ufw allow from xxxx.xxxx.xxx
+
+Esto habilita en el firewall todo el trafico
+
+-----------------------------------
+
+Correcto archivo de configuracion 00-installer-config.yaml:
+
+# This is the network config written by 'subiquity'
+network:
+  ethernets:
+    ens160:
+      addresses:
+      - xxxx.xxxx.xxx/24 
+      routes:
+        - to: default
+          via: xxxx.xxxx.xxx
+      nameservers:
+        addresses:
+        search:
+        - universidad.edu.ar
+  version: 2
+
+-----------------------------------
+
+Copiar archivos con scp manteniendo los permisos:
+
+scp -rp carpeta/ root@xxxx.xxxx.xxx:/var/nfsshare/
+
+-----------------------------------
+
+Conexiones entrantes 
+
+tcpdump -i any -nn port 80
+
+-----------------------------------
+
+Crontab no funcionaba, asegurarse de que tenga el usuario correcto y este tabulado y no con espacios
+
+/etc/crontab
+
+52 6    1 * *   root    test -x /usr/sbin/anacron || ( cd / && run-parts --report /etc/cron.monthly )
+49 9    * * *   root    /bin/echo "Inicio" >> /tmp/statistics.txt
+0 0     * * *   root    $DSPACE/bin/dspace oai import > /dev/null
+0 0     * * *   root    $DSPACE/bin/dspace index-discovery > /dev/nul
+
+-----------------------------------
+
+Exportar lista de usuarios LDAP 
+
+Nos vamos al cliente ldap>usuarios y le damos a tools>export
+Esto nos va a generar una lista, la cual movemos a un servidot y filtramos con grep los campos deseados ej.
+grep mail: lista.txt 
+
+-----------------------------------
+
+Si no nos deja entrar al wordpress WordPress desde la web probar lo siguiente:
+
+Desactiva Plugins:
+
+Si puedes acceder a la carpeta de plugins, 
+intenta desactivar todos los plugins renombrando la carpeta plugins a algo diferente, como plugins_temp. 
+Luego, intenta acceder al panel de administración de WordPress. Si puedes acceder, el problema podría estar relacionado con un plugin específico.
+
+----------------------------------
+
+Node JS y npm :
+
+# Descargar el archivo
+wget https://nodejs.org/dist/v20.10.0/node-v20.10.0-linux-x64.tar.xz
+
+# Descomprimir el archivo
+tar -xf node-v20.10.0-linux-x64.tar.xz
+
+sudo mv node-v20.10.0-linux-x64 /usr/local/
+
+# Añadir directorios binarios de Node.js y npm al PATH
+export PATH=$PATH:/usr/local/node-v20.10.0-linux-x64/bin
+
+# Hacer la modificación permanente agregando la línea anterior al archivo de perfil (por ejemplo, .bashrc o .zshrc)
+echo 'export PATH=$PATH:/usr/local/node-v20.10.0-linux-x64/bin' >> ~/.bashrc
+
+
+
+# Verificar la versión de Node.js
+node -v
+
+# Verificar la versión de npm
+npm -v
+agregar al ngninx allow 10.10.0.2;
+
+----------------------------------
+
+Archivo resolv.conf:
+
+Si al intentar actualizar se traba o no da ping, probablemente hay un problema con la resolucion de DNS
+Editar el archivo /etc/resolv.conf
+
+tiene que tener solo esto
+
+nameserver 127.0.0.53
+options edns0 trust-ad
+search universidad.edu.ar
+
+----------------------------------
+Lets Encrypt
+
+systemctl stop apache
+certbot certonly --standalone -d campus.fcagr.universidad.edu.ar
+
+Por lo tanto, en resumen, el comando detiene Apache y luego utiliza Certbot para solicitar un certificado SSL/TLS para el dominio campus.fcagr.universidad.edu.ar. 
+Una vez que se completa el proceso de solicitud del certificado, Apache puede reiniciarse para que los sitios web alojados en él estén disponibles nuevamente con el nuevo certificado SSL/TLS instalado.
+----------------------------------
+Habilitar un script creado en otro sistema operativo 
+
+sed -i 's/\r$//' copia_prueba.sh
+----------------------------------
+
+No se encuentra expect
+
+-bash: ./copia_prueba.sh: /usr/bin/expect: bad interpreter: No such file or directory
+
+
+sudo apt-get install expect
+
+/usr/bin/expect
+
+---------------------------------
+
+Habilitar proxy en apache
+
+sudo a2enmod proxy
+sudo a2enmod proxy_http
+
+Añadir esto a la configuracion del sitio:
+
+<VirtualHost *:80>
+    ServerName example.com
+    ProxyPass / http://tu_dirección_destino/
+    ProxyPassReverse / http://tu_dirección_destino/
+</VirtualHost>
+
+
+Reemplaza example.com con tu nombre de dominio y tu_dirección_destino con la URL del servidor al que deseas redirigir el tráfico.
+
+sudo a2ensite example.com.conf
+
+sudo systemctl restart apache2
+
+---------------------------------
+
+La version 5.2.6 
+
+xz --version 
+
+---------------------------------
+
+Probar redis desde un servidor remoto
+
+En el archivo redis.conf se pone la IP DEL REDIS, y 127.0.0.1, no las ip que se conectan
+redis-cli
+MONITOR
+redis-cli -h xxx.xx.xxx.x  -p 6379
+
+---------------------------------
+
+
+INFOIP: Para verificar de donde viene una IP que puede ser del extranjero por una ataque DDOS
+
+---------------------------------
+
+Testear conexiones DNS sin ping
+
+dig @10.1.20.25 www.google.com
+dig@GATEWAY
+
+---------------------------------
+
+Borrar logs para aumentar espacio: 
+
+sudo journalctl --vacuum-time=2weeks
+sudo journalctl --vacuum-size=100M
+
+---------------------------------
+
+Verificar TLS tls con openssl
+
+1: openssl s_client -connect xxx.xx.xxx.xx:443 -tls1
+1.1: openssl s_client -connect xxx.xx.xxx.xx:443 -tls1_1
+
+Si devuelve un crt, es porque el tls esta habiltiado
+
+---------------------------------
+
+Configurar Postfix  - smtp - correo - Script espacio
+
+---------------------------------
+
+Funciona en NFS - DEV WORKER 1
+
+Para configurar Postfix en Ubuntu y que tu sistema operativo pueda enviarte correos electróusuarios, sigue estos pasos:
+
+    Instalar Postfix:
+    Abre una terminal y ejecuta:
+
+    bash
+
+sudo apt update
+sudo apt install postfix mailutils
+
+Configurar Postfix:
+Durante la instalación, se te pedirá que configures Postfix. Selecciona "Sitio de Internet" y luego ingresa el nombre de dominio de tu servidor o deja el valor predeterminado.
+
+Configurar archivo main.cf:
+Abre el archivo de configuración de Postfix:
+
+bash
+
+sudo nano /etc/postfix/main.cf
+
+Asegúrate de tener las siguientes configuraciones (ajusta según tus necesidades):
+
+Comentar TLS y snakeoil
+
+plaintext
+smtpd_relay_restrictions = permit_mynetworks permit_sasl_authenticated defer_unauth_destination
+myhostname = dev-univ.universidad.edu.ar
+alias_maps = hash:/etc/aliases
+alias_database = hash:/etc/aliases
+myorigin = /etc/mailname
+mydestination = $myhostname, mail.universidad.edu.ar, eei-dev-worker, localhost.localdomain, localhost
+relayhost = mail.universidad.edu.ar:25
+mynetworks = 127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128
+mailbox_size_limit = 0
+recipient_delimiter = +
+inet_interfaces = all
+inet_protocols = all
+
+smtp_use_tls=yes
+smtp_sasl_auth_enable = yes
+smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd
+smtp_sasl_security_options = noanonymous
+
+smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt
+smtp_generic_maps = hash:/etc/postfix/generic
+
+Configurar autenticación SMTP:
+
+touch  /etc/postfix/sasl_passwd
+nano /etc/postfix/sasl_passwd
+
+
+Añade la siguiente línea (sustituyendo tu_email@gmail.com y tu_contraseña con tus credenciales reales):
+
+[smtp.gmail.com]:587 tu_email@gmail.com:tu_contraseña
+
+Nota: Si usas Gmail, es posible que necesites generar una contraseña de aplicación en lugar de usar tu contraseña habitual de Gmail.
+
+Establecer permisos y generar el archivo hash:
+
+bash
+
+sudo chmod 600 /etc/postfix/sasl_passwd
+sudo postmap /etc/postfix/sasl_passwd
+
+Reiniciar Postfix:
+
+bash
+
+sudo systemctl restart postfix
+
+Probar la configuración:
+Intenta enviar un correo electróusuario de prueba para asegurarte de que todo está funcionando correctamente:
+
+bash
+
+    echo "Este es un correo de prueba" | mail -s "Prueba de Postfix" tu_destinatario@dominio.com
+
+Si todo está configurado correctamente, deberías recibir el correo de prueba en la dirección que especificaste.
+
+Estos pasos deberían ayudarte a configurar Postfix para enviar correos electróusuarios desde tu sistema Ubuntu. Si tienes algún problema, verifica los archivos de registro de Postfix para más detalles:
+
+bash
+
+sudo tail -f /var/log/mail.log
+
+May 31 10:19:33 eei-dev-worker postfix/pickup[2231779]: D40931015BF: uid=0 from=<root@eei-dev-worker>
+May 31 10:19:33 eei-dev-worker postfix/cleanup[2231865]: D40931015BF: message-id=<20240531131933.D40931015BF@mail.ar>
+May 31 10:19:33 eei-dev-worker postfix/qmgr[2231780]: D40931015BF: from=<root@eei-dev-worker>, size=386, nrcpt=1 (queue active)
+May 31 10:19:40 eei-dev-worker postfix/smtp[2231869]: D40931015BF: to=<mmail@mail.com>, relay=mail.arxxx.xx.xxx.xx:25, delay=6.8, delays=0.14/0.43/6.1/0.1, dsn=5.7.1, status=bounced (host mail.universidad.edu.arxxx.xx.xxx.xx said: 553 5.7.1 <root@eei-dev-worker>: Sender address rejected: not owned by user usuario.apell@universidad.edu.ar (in reply to RCPT TO command))
+May 31 10:19:40 eei-dev-worker postfix/cleanup[2231865]: 7A4821015C3: message-id=<20240531131940.7A4821015C3@dev-univ.universidad.edu.ar>
+May 31 10:19:40 eei-dev-worker postfix/bounce[2231875]: D40931015BF: sender non-delivery notification: 7A4821015C3
+May 31 10:19:40 eei-dev-worker postfix/qmgr[2231780]: 7A4821015C3: from=<>, size=2589, nrcpt=1 (queue active)
+May 31 10:19:40 eei-dev-worker postfix/qmgr[2231780]: D40931015BF: removed
+May 31 10:19:40 eei-dev-worker postfix/local[2231876]: 7A4821015C3: to=<root@eei-dev-worker>, relay=local, delay=0.01, delays=0/0.01/0/0, dsn=2.0.0, status=sent (delivered to mailbox)
+May 31 10:19:40 eei-dev-worker postfix/qmgr[2231780]: 7A4821015C3: removed
+ChatGPT
+
+El mensaje de error que estás viendo, 553 5.7.1 <root@eei-dev-worker>: Sender address rejected: not owned by user usuario.apell@universidad.edu.ar, indica que el servidor de correo de destino está rechazando el correo debido a que la dirección del remitente no coincide con la del usuario autenticado.
+
+Para solucionar esto, puedes intentar configurar Postfix para que use una dirección de remitente válida que sea aceptada por el servidor de correo de destino. Aquí hay algunas opciones para hacerlo:
+Opción 1: Configurar un Remitente Fijo para Todos los Correos
+
+Puedes configurar Postfix para que reemplace la dirección de remitente por una dirección de correo válida. Para hacerlo, sigue estos pasos:
+
+    Editar el archivo de configuración de Postfix:
+    Abre el archivo /etc/postfix/main.cf:
+
+    bash
+
+sudo nano /etc/postfix/main.cf
+
+Añadir una dirección de remitente fija:
+Añade la siguiente línea al final del archivo, reemplazando tu_email@dominio.com por una dirección de correo válida:
+
+
+smtp_use_tls=yes
+smtp_sasl_auth_enable = yes
+smtp_sasl_password_maps = hash:/etc/postfix/sasl_passwd
+smtp_sasl_security_options = noanonymous
+
+smtp_tls_CAfile = /etc/ssl/certs/ca-certificates.crt
+smtp_generic_maps = hash:/etc/postfix/generic
+
+
+smtp_generic_maps = hash:/etc/postfix/generic
+
+
+Crear el archivo de mapeo:
+
+Crea el archivo /etc/postfix/generic:
+
+touch /etc/postfix/generic
+nano /etc/postfix/generic
+
+root@eei-dev-nfs usuario.apell@universidad.edu.ar
+
+
+
+Añade la siguiente línea al archivo, reemplazando tu_email@dominio.com por la dirección de correo que deseas usar:
+
+
+root@eei-dev-worker tu_email@dominio.com
+
+Generar el archivo de mapeo hash:
+
+bash
+
+sudo postmap /etc/postfix/generic
+
+Reiniciar Postfix:
+
+bash
+
+sudo systemctl restart postfix
+
+
+echo "Este es un correo de prueba" | mail -s "Prueba de Postfix" usuario.apell@universidad.edu.ar
+
+
+---------------------------------
+
+Crontab: 
+
+45 10   * * 1   root    /opt/scripts/script_Espacio_Disco.sh
+
+Lunes
+Funciona correctamente 
+---------------------------------
+
+
+dig google.com.ar ---> Buscar que hace
+
+---------------------------------
+
+Cambiar archivo de red en centos, copiarlo con distinto nombre y reiniciar
+
+https://www.cyberciti.biz/faq/howto-setting-rhel7-centos-7-static-ip-configuration/
+
+---------------------------------
+
+sudo apt install mysql-server
+
+---------------------------------
+
+/usr/share/elasticsearch/bin
+
+./elasticsearch
+
+---------------------------------
+
+Instalar Scripts - Crontab 9:30 todos los dias: 
+
+/opt/myscripts/
+
+crontab -e
+30 09 * * * /opt/myscripts/script_espacio_Disco.sh
+
+systemctl restart cron.service
+
+Dev: Espacio en disco (Listo) - Contenedores (NO)
+Capa: Espacio en disco (Listo) - Contenedores (NO)
+Test: Espacio en disco (Listo) - Contenedores (NO)
+Prod: Espacio en disco (solo workers) - Contenedores (NO)
+
+
+---------------------------------
+
+mutt: Esta configurado en la xxx.xx.xx.xx
+
+echo "Se detectaron cambios en los certificados SSL del sitio ojs.localidad-conicet.gov.ar IP: xxx.xx.xxx.xx" | mutt -s "Cambios en certificados SSL" "usuario.apell@universidad.edu.ar" -a "texto.txt" -c usuario.salazar@universidad.edu.ar
+
+---------------------------------
+
+Script para chequear actualizacion de certificados en Lets Encrypt y nos envie el comprimido - Mutt :
+
+1- Instalar Mutt y crear archivo de configuracion muttrc en /root/
+
+sudo apt-get update
+sudo apt-get install mutt
+touch /.muttrc
+nano /.muttrc
+
+set from = "usuario.apell@universidad.edu.ar"
+set realname = "Revistas Conicet"
+
+set smtp_url = "smtp://usuario.apell@universidad.edu.ar:yHRpm93VQTbLG92@mail.universidad.edu.ar:25/"
+set smtp_pass = "pass"
+set ssl_force_tls = no
+
+
+2- Crear script
+
+cd /opt/
+mkdir /myscripts/
+touch scritp.sh
+chmod +x script.sh
+
+------- 
+# Directorio donde se encuentran los certificados de Let's Encrypt
+CERT_DIR="/var/www/ojs.localidad-conicet.gov.ar/ssl"
+
+# Archivo para almacenar los hashes de los certificados
+HASH_FILE="/var/www/ojs.localidad-conicet.gov.ar/private/hash.txt"
+
+# Archivo temporal para almacenar los hashes actuales
+TEMP_HASH_FILE="/var/www/ojs.localidad-conicet.gov.ar/private/hash_actual.txt"
+
+# Archivo de log para registrar los cambios
+LOG_FILE="/var/www/ojs.localidad-conicet.gov.ar/private/certificate_changes.log"
+
+CERT_ARCHIVE="/var/www/ojs.localidad-conicet.gov.ar/ssl/certificados.tar.gz"
+
+# Dirección de correo del destinatario
+EMAIL="usuario.apell@universidad.edu.ar"
+##EMAILCC3="nusuario@universidad.edu.ar"
+##EMAILCC4="soporte@universidad.edu.ar"
+
+# Generar los hashes actuales de los certificados
+find "$CERT_DIR" -type f \( -name "*.crt" -o -name "*.pem" -o -name "*.key" \) -exec sha256sum {} \; > "$TEMP_HASH_FILE"
+
+# Recuperar las fechas del nuevo certificado
+FECHASSL=$(openssl x509 -dates -noout < /var/www/ojs.localidad-conicet.gov.ar/ssl/www.esociales.universidad.edu.ar-le.crt)
+
+# Comparar los hashes actuales con los anteriores
+if ! diff "$HASH_FILE" "$TEMP_HASH_FILE" > /dev/null; then
+    # Si hay cambios, registrar los cambios en el log y enviar un correo
+    echo "Se detectaron cambios en los certificados SSL el $(date)" >> "$LOG_FILE"
+
+    # Comprimir los certificados y claves privadas
+    tar -czf "$CERT_ARCHIVE" -C "$CERT_DIR" .
+
+    # Enviar correo con mutt
+    echo "Se detectaron cambios en los certificados SSL del sitio ojs.localidad-conicet.gov.ar IP: xxx.xx.xxx.xx el $(date). Fechas del nuevo certificado: $FECHASSL" | mutt -s "Cambios en certificados SSL>
+
+    # Actualizar el archivo de hashes anteriores
+    cp "$TEMP_HASH_FILE" "$HASH_FILE"
+fi
+
+# Limpiar el archivo temporal
+rm "$TEMP_HASH_FILE"
+
+# Borrar el archivo comprimido si existe
+if [ -f "$CERT_ARCHIVE" ]; then
+    rm "$CERT_ARCHIVE"
+fi
+------- 
+
+3- Crear el archivo de log /opt/myscripts/cron.log para que guarde la salida
+
+4- Editar crontab para ejecutar el script cada una hora:
+
+crontab -e
+
+0 * * * * /opt/myscripts/script.sh >> /opt/myscripts/cron.log
+
+----------------------
+
+git clone roblem with the SSL CA cert (path? access rights?)
+git config --global http.sslVerify false
+
+----------------------
+Archivo de red 
+
+/etc/netplan
+
+----------------------
+
+Escribir logs en tiempo real
+
+docker service logs -f --tail 100 sudocu_api-server >> log_api_server.txt
+
+----------------------
+
+
+----------------------------------------------------------------------
+Certificados
+----------------------------------------------------------------------
+
+> Intermediate.crt es distitno a wildcard_campusvirtualuniversidad_edu_ar.key y a wildcard_campusvirtualuniversidad_edu_ar.crt
+
+> crt_int.crt esta compuesto por 1# wildcard_universidad_edu_ar.crt y 2# Intermediate.crt (Al menos en ngnix) Primero wildcard y luego los dos intermedios, quedan 3 certificados en un archivo
+
+> Para actualizar hay que reemplazar wildcard_campusvirtualuniversidad_edu_ar.key, wildcard_campusvirtualuniversidad_edu_ar.crt y editar crt_int para escribir en el, el contenido de wildcard_campusvirtualuniversidad_edu_ar.crt
+
+> Reiniciar nginx
+
+> Verificar el sitio, ej https://sitios4.campusvirtualuniversidad.edu.ar/
+
+-----------------------------------
+Actualizar certificados - universidad.edu.ar
+-----------------------------------
+
+1- Cargar los certificados
+
+Tanto Traefik como lets encrypt necesitan un certificado 
+ (Intermediate.crt), 
+que se añade debajo del certificado que tienen originalmente (wildcard_universidad.edu.ar.crt) bajo el nombre de crt_int.crt .
+Al archivo crt_int.crt copiarle el wildcard_universidad.edu.ar.crt y debajo el Intermediate.crt.
+
+crt_int.crt=  wildcard_universidad.edu.ar.crt + Intermedio 
+Buscar en Archivos_prod
+-- crt_int.crt  -- 
+
+docker stack rm traefik
+docker config rm traefik_tls_cert
+docker secret rm traefik_tls_key
+
+docker config create traefik_tls_cert crt_int.crt
+docker secret create traefik_tls_key wildcard_universidad.edu.ar.key
+	
+2- Volver a deployar los stacks
+
+docker stack deploy -c servicios/traefik.yml traefik
+
+-----------------------------------
+Actualizar certificados 2022-2024 en sitios - https://sitios4.campusvirtualuniversidad.edu.ar/ (sitios usa otro certificado que porque es .edu.ar (NO ES universidad.edu.ar) )
+-----------------------------------
+
+1- Editar el archivo hosts C:\Windows\System32\drivers\etc\hosts
+
+
+
+2- Ingresar a cada uno de los servidores llamados(residen en el viejo cluster):
+
+    VM-universidad-sitios-Web-XX
+    VM-universidad-sitios1-Web-XX   
+    VM-universidad-sitios2-Web-XX   
+    VM-universidad-sitios3-Web-XX   
+    VM-universidad-sitios4-Web-XX   
+    VM-universidad-Cursos-Web-XX         
+
+3- Reemplazar los archivos con el nuevo archivo
+
+El wildcard_campusvirtualuniversidad_edu_ar.crt esta compuesto de su certificado + los dos debajo del intermedio
+
+    /etc/nginx/certificados/wildcard_campusvirtualuniversidad_edu_ar.crt
+    /etc/nginx/certificados/wildcard_campusvirtualuniversidad_edu_ar.key
+	/etc/nginx/certificados/Intermediate.crt 
+
+4- Reiniciar el servicio nginx
+
+    systemctl restart nginx
+
+5- Una vez finalizado un set de servidores verificar la presencia del nuevo certificado examinando en un navegador las propiedades del certificado. Pueden utilizar openssl si se sienten cómodos.
+   https://www.dondominio.com/products/ssl/tools/ssl-checker/
+
+Los sitios son https://sitios1.campusvirtualuniversidad.edu.ar/
+
+Paginas:
+https://sitios1.campusvirtualuniversidad.edu.ar/
+https://sitios2.campusvirtualuniversidad.edu.ar/
+https://cursos.campusvirtualuniversidad.edu.ar/
+
+6- Si la conexion no funciona, traer desde scp mediante la terminal del vmware
+scp root@xxx.xx.xxx.xx:/etc/nginx/certificados/wildcard_campusvirtualuniversidad_edu_ar.crt /etc/nginx//
+
+-----------------------------------
+Actualizar certificados en Toba3 - Wemes - SSL Pagina web - Validez
+-----------------------------------
+
+1- editar etc/apache/sites-enable.conf
+2- leer la ruta de los certificados
+ej "etc/ssl/cert/universidad.cert" y "etc/ssl/secret/universidad.key" 
+3- reemplazarlos por los certificados nuevos
+4- reiniciar apache2
+5- Si el apache2 no reiniciar, verificar logs de apache, quizas cambiamos uno y no el otro
+
+-----------------------------------
+Actualizar certificados en Toba3 - Wemes - Nuxeo (Arai Documentos)
+-----------------------------------
+
+1- Tambien actualizar los certificados en Wemes para que se conecte con la API de arai-usuarios
+
+https://expedientes.siu.edu.ar/docs/arai/#generar-certificados
+
+2- Se generan los certificados en arai con estos comandos para que las otras aplicaciones se puedan conectar:
+
+mkdir certs
+openssl req -newkey rsa:2048 -new -x509 -days 3652 -nodes -out certs/certificado_idp.crt -keyout certs/certificado_idp.key (arai)
+openssl genrsa -out certs/oidc_module.pem 2048
+openssl rsa -in certs/oidc_module.pem -pubout -out certs/oidc_module.crt
+
+docker config create usuarios_idp_saml_cert ./certs/certificado_idp.crt
+docker secret create usuarios_idp_saml_key ./certs/certificado_idp.key
+docker secret create usuarios_idp_oidc_key ./certs/oidc_module.pem
+docker config create usuarios_idp_oidc_cert ./certs/oidc_module.crt
+
+Se crean el archivo certificado_idp.crt, el cual, su contenido debe ser COPIADO dentro del certificado del proyecto wemes, reeplazando asi mel mismo, para tener la conexion a ARAI
+
+3-  En TOBA, en la ruta del proyecto wemes: /opt/weme3_test/instalacion el certificado es idp.crt
+cambiar el contenido del idp.crt para que quede igual al certificado_idp.crt
+
+-----------------------------------
+
+En /opt/expedientes/prod/arai/certs/ se encuentra el archivo certificado_idp.crt
+A parir de la version 1.3.0 sudocu tambien utiliza certificado_idp.crt para vincularse a arai, es el certificado que usan las aplicaciones para vincularse
+-----------------------------------
+
+xxx.xx.xxx.xx -> No se pueden conectar a la base, ni abrir el aplicativo web. 
+Es un centos
+Se reinicia con init 6, y funciona correctamente
+
+-----------------------------------
+Que es Rest-Api
+-----------------------------------
+
+https://www.redhat.com/es/topics/api/what-is-a-rest-api
+
+Usuario<---->(Nuxeo)<---->Arai_Documentos
+
+-----------------------------------
+
+Crear el certificado para mandar a certisur:
+Este comando tambien crea el certificado .key que se va a usar cuando pisemos los certificados viejos
+
+openssl req -nodes -newkey rsa:2048 -keyout campusvirtualuniversidad_edu_ar.key -out campusvirtualuniversidad_edu_ar.csr -subj "/C=AR/ST=Santa Fe/L=localidad/O=Universidad Nacional de localidad/OU=IT Department/emailAddress=nusuario@universidad.edu.ar/CN=*.campusvirtualuniversidad.edu.ar" 
+
+-----------------------------------
+
+Error failed to connect http://ar.archive.ubuntu.com/
+
+Puede ser que el mirror de argentina este roto, cambiarlo por
+
+http://br.archive.ubuntu.com
+
+nano /etc/apt/sources.list
+
+-----------------------------------
+
+Crear un script en Windows que ejecute una maquina virtual cada vez que se encienda 
+
+https://www.elasticourse.com/how-to-automatically-start-a-virtual-machine-vm-with-windows-startup/
+
+-----------------------------------
+
+Herramienta para configuracion de postgres, concurrencia, limites y disponibilidad
+
+https://pgtune.leopard.in.ua/
+
+
+-----------------------------------
+Instalar NFS: 
+-----------------------------------
+
+https://sysadmins.co.za/setup-a-nfs-server-on-ubuntu/
+
+-- Lado del servidor --
+
+1- apt install nfs-common -y
+
+2- sudo apt-get install nfs-kernel-server nfs-common -y
+
+3- mkdir /vol
+chown -R nobody:nogroup /vol
+
+5- Escribir en el archivo /etc/exports ej.
+echo '/vol    10.0.9.0(rw,sync,no_root_squash,no_all_squash)' >> /etc/exports
+
+6- sudo systemctl restart nfs-kernel-server
+   
+7- sudo systemctl enable nfs-kernel-server
+
+-- Lado del cliente --
+ 
+1- sudo apt-get install nfs-common -y
+
+2- sudo mount IP.DEL.SERVIDOR.NFS:/vol /mnt
+   sudo umount /mnt
+   df -h
+
+3- Escribie en el archivo /etc/fstab
+   sudo bash -c "echo 'IP.DEL.SERVIDOR.NFS:/vol /mnt nfs auto,nofail,noatime,nolock,intr,tcp,actimeo=1800 0 0' >> /etc/fstab"
+   sudo mount -a
+   df -h
+   
+4- Comprobar con un mkdir si esta compartida la carpeta /vol del servidor con las carpetas /mnt de los clientes
+
+((Si no funciona utilizar:
+ mount -vvvv -t nfs -o vers=3 IP.NFS.SRVR:/vol /mnt ))
+ 
+ 
+ --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

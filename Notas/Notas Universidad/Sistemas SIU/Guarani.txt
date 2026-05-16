@@ -1,0 +1,304 @@
+Consideraciones para Instalar Guarani:
+
+/usr/local/proyectos/guarani
+
+Tener un usuario colab - https://colab.siu.edu.ar/
+
+https://documentacion.siu.edu.ar/wiki/SIU-Guarani/version3.20.0/instalacion_desde_cero/produccion/gestion/linux
+
+Solucion error paso 5: composer install --prefer-dist --no-dev --optimize-autoloader
+
+Solucion error paso 15: https://marsown.com/wordpress/how-to-enable-etc-rc-local-with-systemd-on-ubuntu-20-04/
+
+Agregar al archivo /etc/rc-local.service:
+
+java -jar /usr/local/proyectos/guarani/vendor/siu-toba/jasper/JavaBridge/WEB-INF/lib/JavaBridge.jar SERVLET_LOCAL:8081
+
+-------------------------------------
+
+Instalar postgres en otra maquina para aislar la base de datos 
+
+Guarani : xxx.xxx.xxx.x
+Guarani DB: 
+-------------------------------------
+
+							=================================		INSTALACION GUARANI		====================================
+Requisitos previos
+Apache	2.2.x o 2.4.x
+PHP	7.4.x
+PostgreSQL	11.6.x
+yui-compressor	2.4.2 o superior
+Yarn	1.19.1 o superior
+==================================
+			GESTION
+==================================
+APACHE
+	apt-get install apache2 libapache2-mod-php7.4 openssl
+	(Habilitar modulos)
+	a2enmod rewrite
+	a2enmod setenvif
+PHP
+	DESINSTALAR PHP 8.1
+	sudo apt-get purge php*
+    sudo apt-get purge `dpkg -l | grep php| awk '{print $2}' |tr "\n" " "`
+    sudo apt autoremove
+	INSTALAR PHP 7.4
+	sudo apt install software-properties-common
+	sudo add-apt-repository ppa:ondrej/php
+	sudo apt update
+	sudo apt install php7.4
+	apt-get install php7.4-cli php7.4-pgsql php7.4-gd php7.4-curl php-apcu php7.4-mbstring php7.4-xml php7.4-zip 
+	apt install libsodium-dev
+	apt-get install php-memcached
+	
+	Modificar los siguientes archivos '/etc/php/7.4/cli/php.ini' y '/etc/php/7.4/apache2/php.ini'
+	Agregamos las siguientes 2 lineas
+	extension=pdo.so  
+	extension=pdo_pgsql.so
+	
+	Y modificamos las siguientes lineas en los dos archivos mencionaods anteriormente
+	;Mínimos
+	output_buffering = On  
+
+	;Recomendados  
+	memory_limit = 256M  
+	upload_max_filesize = 8M
+	post_max_size = 8M
+	date.timezone = America/Argentina/Buenos_Aires
+	default_charset = "ISO-8859-1"
+	mbstring.internal_encoding = "ISO-8859-1"
+ 
+ 
+ 
+SUBVERSION
+	apt-get install subversion
+
+GIT
+	apt-get install git
+
+COMPOSER
+	php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');"
+	php -r "if (hash_file('sha384', 'composer-setup.php') === '55ce33d7678c5a611085589f1f3ddf8b3c52d662cd01d4ba75c0ee0459970c2200a51f492d557530c71c15d8dba01eae') { echo 'Installer verified'; } else { echo 'Installer corrupt'; unlink('composer-setup.php'); } echo PHP_EOL;"
+	php composer-setup.php
+	php -r "unlink('composer-setup.php');"
+	sudo mv composer.phar /usr/local/bin/composer
+	sudo apt-get install zip
+	sudo apt-get install unzip
+	
+YARN	
+	apt install npm
+	npm install --global yarn
+	
+GRAPHVIZ
+	apt-get install graphviz
+
+JAVA
+	sudo apt-get install default-jdk
+	
+SUHOSIN	(OPCIONAL)
+	EN /etc/php/7.4/conf.d/suhosin.ini
+	suhosin.request.max_varname_length = 128  
+	suhosin.post.max_name_length = 128
+	
+
+* Crear directorios	-->		mkdir /usr/local/proyectos/guarani
+* Descargamos las fuentes correspondientes 	-->	svn checkout https://colab.siu.edu.ar/svn/guarani3/nodos/universidad/gestion/trunk/3.20.x /usr/local/proyectos/guarani
+* Instalamos via COMPOSER las dependencias correspondientes 	-->	composer install
+* En /usr/local/proyectos/guarani/bin
+	export TOBA_INSTANCIA=desarrollo
+	export TOBA_INSTALACION_DIR=/usr/local/proyectos/guarani/instalacion
+	./toba instalacion instalar
+		alias: toba
+		Por favor, ingrese su n▒mero de desarrollador (ENTER utilizar▒ 0): 
+		Se trata de una instalacion de producci▒n? (Si o No): n
+		Nombre de la instalaci▒n (ej: Andromeda): guarani3
+* Dar permisos www-data a las siguientes carpetas		-->	chown -R $(whoami):www-data www temp instalacion vendor/siu-toba/framework/www vendor/siu-toba/framework/temp
+													-->	chmod 775 -R www temp instalacion vendor/siu-toba/framework/www vendor/siu-toba/framework/temp
+* Crear un link simbólico a toba.conf, e indicarle Apache que recargue los archivos de configuración
+	ln -s <path proyecto Guaraní>/instalacion/toba.conf /etc/apache2/sites-available/gestion.conf
+	a2ensite gestion.conf
+	service apache2 reload
+	
+* Agregar los parametros en el siguiente archivo /usr/local/proyectos/guarani/instalacion/instalacion.ini
+	[xslfo]
+	fop=/usr/local/proyectos/guarani/php/3ros/fop/fop
+	
+* Creamos nuestro menu con sus modificaciones 	-->	cp menu.ini.tmpl menu.ini 	
+	con --> menu = 2
+
+* Cargamos el proyecto
+	./guarani cargar -d /usr/local/proyectos/guarani/
+* Reiniciamos apache
+	service apache2 restart
+
+* Configuramos la API (OPCIONAL) https://documentacion.siu.edu.ar/wiki/SIU-Guarani/version3.20.0/interfaces/api-guarani-perfil-funcional
+* Creamos base de datos de negocio. Dentro de /usr/local/proyectos/guarani/bin/
+	./guarani instalar
+	
+ 
+==================================
+			DATABASE
+==================================
+PostgreSQL
+	apt-get install postgresql
+	apt-get install postgresql-contrib-14
+	
+	Modificar el archivo postgresql.conf
+	la variable bytea_output esté seteada con valor escape y que la misma NO esté comentada
+	la variable timezone esté correctamente configurada
+	(VER) hora en postgresql.conf
+	Reiniciar PostgreSQL
+	
+* En el archivo pg_hba.conf agregar el acceso a las siguientes ip
+	host    all             all            xxx.xxx.xxx.x/24       md5
+	host    all             all             xxx.xxx.xxx.x/24       md5
+* Agregar password al usuario postgres y modificar la siguiente linea en el archivo pg_hba.conf
+	alter user postgres with password 'passwd';
+	local   all             postgres                                peer
+	a
+	local   all             postgres                                md5
+
+* Modificar el siguiente archivo postgresql.conf
+	DE listen_addresses = 'localhost' 	-->	A	listen_addresses = '*'
+
+* Crear base de datos guarani3
+
+						====================================================================================
+											ACTUALIZACION DE GUARANI CON PERSONALIZACIONES
+						====================================================================================
+
+-------------------------------------
+Activar Personalizaciones 
+-------------------------------------
+
+1- cd /usr/local/proyectos/guarani/bin
+./guarani esquema_pers exportar
+
+2- ./guarani esquema_pers desactivar
+
+3- svn status
+Si dentro del directorio de personalizaciones aparece el signo ?, se debe ejecutar el siguiente comando para que luego el directorio que tiene el ? sea considerado para agregar a SVN:
+svn add <path del directorio que se tiene que agregar (el que tiene el signo ?)>
+
+4- cd /usr/local/proyectos/guarani
+svn switch https://colab.siu.edu.ar/svn/guarani3/nodos/universidad/gestion/trunk/3.20.X --ignore-ancestry
+crivera
+!jkiuXxcD
+
+5- svn status
+verificar que no existan archivos con estado 'S'.
+
+6- composer --version
+   yarn --version  
+verificar que no existan errores   
+  
+7- composer install
+
+8- cd /usr/local/proyectos/guarani/bin
+./toba instancia regenerar -i desarrollo
+
+9- cd /usr/local/proyectos/guarani/bin
+ ./guarani migrar_base
+ 
+10- cd/usr/local/proyectos/guarani
+    svn merge -r0:HEAD https://colab.siu.edu.ar/svn/guarani3/nodos/universidad/gestion/trunk/3.20.2/personalizacion/ ./personalizacion/
+	
+11- ./guarani esquema_pers iniciar
+
+12- ./guarani esquema_pers conflictos
+no se detecto ningun conflicto
+	
+13- ./guarani esquema_pers importar 
+(todo en la carpeta cd /usr/local/proyectos/guarani/bin)
+
+14- cd /usr/local/proyectos/guarani/
+svn commit -m "3.20.2 Merge de las personalizaciones realizadas en versiones anteriores"
+
+15- cd /usr/local/proyectos/guarani/bin
+./guarani exportar
+
+16- cd /usr/local/proyectos/guarani
+svn commit -m "3.20.2 Se versionan metadatos exportados de las personalizaciones realizadas en versiones anteriores"
+
+-------------------------------------
+
+Acutlizar a 3.20.1
+
+./guarani instancia_exp_local
+svn switch https://colab.siu.edu.ar/svn/guarani3/nodos/universidad/gestion/versiones/3.20.1.1 --ignore-ancestry
+composer install --prefer-dist --no-dev --optimize-autoloader
+cd bin/
+./reestructurar
+service apache2 restart
+./toba instancia regenerar -i desarrollo
+./guarani migrar_base
+./guarani compilar
+
+-------------------------------------
+
+Acutlizar a 3.20.2
+
+https://foro.comunidad.siu.edu.ar/index.php?topic=25082.msg114091#msg114091
+
+svn switch https://colab.siu.edu.ar/svn/guarani3/nodos/universidad/gestion/versiones/3.20.2.0 --ignore-ancestry
+cd ..
+composer install --ignore-platform-reqs
+tar -czf prueba.tar.gz composer.lock vendor/ ---> Eliminamos la carpeta vendor
+rm -rf vendor/ composer.lock
+svn update
+composer install --prefer-dist --no-dev --optimize-autoloader --ignore-platform-reqs 
+./reestructurar
+service apache2 restart
+./toba instancia regenerar -i desarrollo
+./guarani migrar_base
+./guarani compilar
+
+Verificar, porque si la actualizacion no funciona en la pagina, los comandos estan siendo ejecutados en carpetas incorrectas.
+NO TIENEN QUE QUEDAR DOS CARPETAS BIN --NO BIN/BIN-- solo una sola
+
+-------------------------------------
+
+Error: Call to undefined function apcu_fetch()
+Arreglar error " apc_fetch() " en guarani:
+
+
+pecl uninstall apc
+
+https://techglimpse.com/fatal-error-undefined-function-apc_fetch/
+
+apt-update
+apt-upgrade
+reiniciar apache
+init 6
+ 
+apt-get install php7.4-apcu
+systemctl restart apache2
+
+-------------------------------------
+
+Autogestion: https://autogestion-g3w4.universidad.edu.ar/
+Test autogestion url3w = "https://test-autogestion4.universidad.edu.ar"
+
+-------------------------------------
+
+Modificar dominio / url / apache httpd:
+
+Carpeta:
+/etc/httpd/conf.d
+
+Archivo:
+vhostsSSL.conf
+
+ 
+Se cambian las líneas con la etiqueta ServerName que apuntaban a otro server.
+
+-------------------------------------
+
+
+Error personalizaciones guarani
+
+https://herramientas.comunidad.siu.edu.ar/aplicacion.php?ah=st63d9042009d819.64416956&ai=extranet%7C%7C45000050&ap=aJEMPtp9liC39tmeT1VXZ64tydpu7ShnoAbnEoroJturRQLqiypWGnQ6JJpNrMbKDcEusecoAENshLpJ8E4no9zkmZ17FeEPv7xsXCdzzZuXOgCfEMPwDmTNyveMUoaqtzpAmg7FUWNCfNdUhOYa8i4gA%2FozZtOw%3D%3D
+
+---------------x----------------------
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

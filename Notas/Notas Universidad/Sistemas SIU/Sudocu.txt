@@ -1,0 +1,1034 @@
+-----------------------------------
+Desplegar Sudocu 
+-----------------------------------
+
+Desplegar Sudocu: https://expedientes.siu.edu.ar/docs/sudocu/
+
+1- docker secret create sudocu-api-server ./sudocu-api-server-secret.json
+
+2- docker stack deploy --with-registry-auth --compose-file sudocu.yml sudocu
+CAPA
+docker run --rm \
+  --env SUDOCU_DB_HOST=xxx.xxx.xxx.x \
+  --env SUDOCU_DB_NAME=sudocu \
+  --env SUDOCU_DB_PORT=5432 \
+  --env SUDOCU_DB_USER=postgres \
+  --env SUDOCU_DB_PASSWORD=pass\
+  ungs/sudocu-db-instalador:1.4.0
+
+3- Reemplazar en los archivos de sudocu
+sed -i 's/uunn.local/dev-univ.universidad.edu.ar/g' \
+    config/config-api-server.json \
+    config/config-sudocu-login.json \
+    config/config-sudocu-mpd.json \
+    config/config-sudocu-mpc.json \
+    config/config-sudocu-gestion.json \
+    sudocu.yml
+
+---------------------------------------------------------------
+Actualizar Sudocu - Cambiar de version - https://expedientes.siu.edu.ar/docs/sudocu/#actualizaci%C3%B3n-de-versi%C3%B3n
+---------------------------------------------------------------
+
+docker run --rm \
+  --env SUDOCU_DB_HOST=xxx.xxx.xxx.x \
+  --env SUDOCU_DB_NAME=sudocu \
+  --env SUDOCU_DB_PORT=5432 \
+  --env SUDOCU_DB_USER=postgres \
+  --env SUDOCU_DB_PASSWORD=pass \
+  ungs/sudocu-db-instalador:1.4.12
+
+Realizar un snapshot de las maquinas involucradas (NFS y Manager)
+
+1- Bajar el stack: docker stack rm sudocu (Puede estar en el manager o en el worker)
+
+2- Modificar el archivo sudocu.yml con el numero de la version a actualizar
+
+3- Modificar el archivo config/config-api-server con los nuevos parametros que son enviados
+
+4- Realizar un backup de la base de datos
+pg_dump -h localhost -U postgres -p 5432 sudocu > sudocu.28032022.sql
+
+5-
+docker run --rm \
+  --env SUDOCU_DB_HOST=xxx.xxx.xxx.x \
+  --env SUDOCU_DB_NAME=sudocu \
+  --env SUDOCU_DB_PORT=5432 \
+  --env SUDOCU_DB_USER=postgres \
+  --env SUDOCU_DB_PASSWORD=pass \
+  ungs/sudocu-db-instalador:1.4.5
+  
+6- docker stack deploy --with-registry-auth --compose-file sudocu.yml sudocu
+
+Las configuraciones de sudocu estan en la carpeta /sudocu/config y la mas importante es la de sudocu-api-server
+https://sudocu.dev/docs/documentacion-tecnica/configuracion/
+
+------------------------------------
+Crear base de datos de sudocu Limpia
+------------------------------------
+
+createdb -h xxx.xxx.xxx.x -U postgres -p 5432 sudocu
+psql -h xxx.xxx.xxx.x -U postgres -p 5432 -c "CREATE SCHEMA sudocu; ALTER SCHEMA sudocu OWNER TO postgres;" sudocu 
+
+------------------------------------
+Vincular Arai/Sudocu:
+
+A partir de la version 1.3.0 de sudocu, este requiere que creemos un certificado y un secret
+https://sudocu.dev/docs/documentacion-tecnica/faq-tecusuario#configuraci%C3%B3n-del-certificado-para-el-idp-en-la-integraci%C3%B3n-ara%C3%AD---usuarios
+
+1- openssl x509 -in certificado_idp.crt -out certificado_idp.pem -outform PEM
+2- docker secret create sudocu_idp_cert_pem certificado_idp.pem
+
+3- Añadir a sudocu.yml
+secrets:
+  ...
+  - source: sudocu_idp_cert_pem         
+    target: /etc/ssl/crt/certificado_idp.pem
+	
+-------y-------	
+	
+secrets:
+  sudocu-api-server:
+      external: true
+  sudocu_idp_cert_pem:
+      external: true	
+
+4- Añadir en config-api-server 
+
+...
+"auth": {
+  ...
+  "saml": {
+    ...
+    "cert_pem" : "/etc/ssl/crt/certificado_idp.pem"
+  }
+}
+...
+
+5- Borrar el stack y volver a deployar 
+
+docker service rm sudocu_api-server 
+docker config rm sudocu_api-server_config
+docker stack deploy --compose-file sudocu.yml sudocu
+
+---------------------
+Los timeout de las sesiones estan en: nano huarpe_parameters.yml
+---------------------
+Casos Duplicados: 
+---------------------
+
+Busco el caso dentro de la base de datos de sudocu:
+select * from sudocu.documentos where titulo ilike '%Nota CEI - Alumnado Nº 067/2021%';
+	
+---------------------
+Si no se ven los archivos que los usuarios quieren descargar:
+
+Borrar el stack
+
+Actualizar el yml. en la parte de dice 
+volumes: file:xxx/sudocu-files
+
+volver a desplegar el stack (probar si se puede hacer en caliente)
+
+---------------------
+Consultas sobre la DB y cambios de numeración:
+---------------------
+
+Buscar un documento específico
+select nro from sudocu.documentos where id = 'e056e944-955e-4f91-bfc4-ca494d352b11';
+
+
+Cambiar numeración (Usar pgAdmin4)
+update sudocu.documentos set nro = '{"anio":2021,"organismo":"UUNN","nro":460,"tipo":"NOTA","area":"0dca3d40-8158-4f17-ad77-708b9d0ca529"}' where id = 'e056e944-955e-4f91-bfc4-ca494d352b11';
+
+
+Cuestiones de puesta en marcha
+No olvidar poner siu types:
+https://documentacion.siu.edu.ar/wiki/SIU-Guarani/Version3.17.0/consideraciones_tecnicas/RDI#Configuraci.C3.B3n_de_los_tipos_SIU_para_Nuxeo
+
+
+Nuxeo: http://nuxeo.universidad.edu.ar:8081/nuxeo/
+Capa: http://xxx.xxx.xxx.x:8081/nuxeo/
+
+Servidor nuxeo.universidad.edu.ar
+Puerto 8081
+Logs: 
+/var/lib/nuxeo/server/log
+/var/log/nuxeo
+Disco externo montado en dir /nuxeo
+
+---------------------
+Arreglar un apellido:
+
+Revisar tablas: documentos_versiones y documentos
+Campo relaciones_personas:
+
+update sudocu.documentos 
+set relaciones_personas = '[{"rol":{"rol":"Firmante","id_tipos_documento":[0],"id":1,"eliminado":false,"fecha_creacion":"2021-06-17T15:13:01.653Z","tipo_documento":"nota"},"tipo":"física","db_ref":null,"nro_doc":"42070225","fecha_relacion":"2021-10-21T15:48:47.031Z","ts":"2021-10-21T14:06:38.028Z","tipo_doc":null,"apellido":"Rapuzio","nombre":"Zoe","pais":null,"contacto":null,"id":"b8b1191c-66be-4819-8f92-5830604cbeca","eliminado":false}]'
+where documentos.id = '457d6efe-5fd6-4db7-8cb8-d2a888c6d3c2';
+
+update sudocu.documentos_versiones set relaciones_personas = '[{"rol":{"rol":"Firmante","id_tipos_documento":[0],"id":1,"eliminado":false,"fecha_creacion":"2021-06-17T15:13:01.653Z","tipo_documento":"nota"},"tipo":"física","db_ref":null,"nro_doc":"42070225","fecha_relacion":"2021-10-21T14:20:29.266Z","ts":"2021-10-21T14:06:38.028Z","tipo_doc":null,"apellido":"Rapuzio","nombre":"Zoe","pais":null,"contacto":null,"id":"b8b1191c-66be-4819-8f92-5830604cbeca","eliminado":false}]' where documentos_versiones.id = 'e33861f6-85f2-46d9-8219-bb9f7a6f92e0';
+
+Eliminar de sudocu trámites desde una fecha determinada, sql al dia de 17/11/21, en el futuro podrian cambiar/agregar tablas: 
+
+DELETE FROM sudocu.ultimos_eventos WHERE id_documento IN (select id from sudocu.documentos WHERE ts < '2021-08-01');
+DELETE FROM sudocu.eventos WHERE id_documento IN (select id from sudocu.documentos WHERE ts < '2021-08-01');
+DELETE FROM sudocu.documentos_relaciones WHERE id_documento IN (select id from sudocu.documentos WHERE ts < '2021-08-01') OR id_documento_relacionado IN (select id from sudocu.documentos WHERE ts < '2021-08-01');
+DELETE FROM sudocu.documentos_personas WHERE id_documento IN (select id from sudocu.documentos WHERE ts < '2021-08-01');
+DELETE FROM sudocu.documentos_seguimientos WHERE id_documento IN (select id from sudocu.documentos WHERE ts < '2021-08-01');
+DELETE FROM sudocu.documentos_versiones WHERE id_original IN (select id from sudocu.documentos WHERE ts < '2021-08-01');
+DELETE FROM sudocu.documentos WHERE id IN (select id from sudocu.documentos WHERE ts < '2021-08-01');
+DELETE FROM sudocu.archivos WHERE id IN (select documento from sudocu.documentos WHERE ts < '2021-08-01');
+DELETE FROM sudocu.archivos WHERE id::text IN (SELECT jsonb_array_elements_text(archivos_adjuntos) FROM sudocu.documentos WHERE ts < '2021-08-01');
+
+-----------------------------------
+Base 64 decode
+-----------------------------------
+
+SELECT firmas from sudocu.documentos where visibilidad = 'reservado'
+
+Hay archivos, como los que descarga sudocu para la firma digital, que estan encodeados en base 64 y no son mas que un txt, la siguiente pagina es para descifrarlos: 
+Si arroja una URL es porque funcionan correctamente 
+
+https://www.base64decode.org/
+
+-----------------------------------
+
+Hay un error que se da al ingresar a sudocu donde dice que el DNI 39961991 no esta asignado a un usuario
+Asignar el dni a un usuario (adminsudocu) desde arai usuarios o desde el pgadmin, o borrar el dni desde la base de datos 
+
+------------------------------------------------
+Anonimizar base de datos Sudocu
+------------------------------------------------
+
+1- Hacer un backup de la base de datos producción.
+
+2- Levantar ese backup a una base de datos de prueba (en el servidor dev).
+
+Hacer un backup de la base que esta en dev.
+Entrar a la base de datos y borrarla
+drop database sudocu 
+create database sudocu
+
+5- Abrir PgAdmin
+
+Correr las sql del anonimizador en la base de datos de prueba.: https://sudocu.dev/docs/documentacion-tecnica/faq-tecusuario/#anonimizar-la-base-de-datos.
+
+6- Hacer un backup de la base de datos de anonimizada, este es el archivo a enviar.
+
+7- Borrar la base y cargar el backup hecho en el punto 1.
+
+------------------------------------
+Session expire / Timeout / Time Out 
+------------------------------------		
+
+Este parametro se encuentra en huarpe_parameters.yml
+Y en la seccion cookies de config-api-server 
+
+------------------------------------
+Aumentar limite de MB  en los archivos de sudocu 
+------------------------------------
+
+https://sudocu.dev/docs/documentacion-tecnica/faq-tecusuario/#ampliaci%C3%B3n-de-memory_limit-y-post_max_size-en-apache
+
+1- Crear un archivo /config/apache.ini
+
+2- docker config create apache_memory_limit ./config/apache.ini
+
+3- Docker stack rm docs sudocu 
+
+4- Editar docs.yml agregandole:
+
+configs:
+apache_memory_limit:
+external: true
+
+y en el bloque "api"
+
+configs:
+source: apache_memory_limit 
+target: /etc/php7/conf.d/app.ini
+
+5- Cambiar los MB maximos en config-api-server.json
+
+    "archivos_adjuntos": {
+      "max_mb": 15,
+      "sum_max_mb": 15,
+      "max_cant": 10
+    },
+
+6- Deployar nuevamente docs, sudocu
+
+------------------------------------
+Error al ingresar a Sudocu
+------------------------------------
+
+Un usuario puede ingresar a Arai Usuarios, pero no puede ingresar a Sudocu
+Figura el siguiente error al ingresar a Sudocu:
+	
+url	"/v1/documento/f93dd60b-0ce7-46ef-bec0-b0cf86a29d4d"
+msg	"error_saml_account_exists"
+type	"error"
+clientmessage	"Ya existe una cuenta con el proveedor y e-mail ingresados"
+id_err	"ngf94"
+
+Desde el PgAdmin:
+
+Sacar el id del usuario:
+select * from sudocu.usuarios where email ilike '%eweksler@yahoo.com.ar%';
+
+Corroboramos que el mail sea igual:
+select * from sudocu.usuarios_cuentas where id_usuario_sudocu ='d2236bd4-8df3-465e-b66a-c62c1e8133e1';	       
+
+si la bisqueda no funciona buscar por id_usuario_idp
+select * from sudocu.usuarios_cuentas where id_usuario_idp ='31540511';
+
+Si el mail no es igual, lo midificamos para que coincida con el mostrado en arai usuarios:
+update sudocu.usuarios_cuentas set email='ignaciofsanchez87@gmail.com' where id_usuario_sudocu='3971c8dc-c6bf-47b5-9639-319e34f330d9'	
+
+
+select * from sudocu.usuarios_cuentas where email ilike '%tamynemirovsky@gmail.com%';
+
+update sudocu.usuarios_cuentas set habilitado=1 where email ilike '%cintialuduea@gmail.com%'
+
+id_usuario_sudocu de sudocu.usuarios_cuentas tiene que ser igual  a id de sudocu.usuarios
+
+Se probo y se pudo ingresgar correctamente
+select * from sudocu.usuarios where email ilike '%ignacio%';
+
+------------------------------------
+Error al ingresar a Sudocu - 2
+------------------------------------
+
+
+Un usuario puede ingresar a Arai Usuarios, pero no a Sudocu
+El error es parecido al anterior, pero dice msg: error_saml_user_cuenta disabled 
+
+El error se producia por dos cuestiones:
+
+Desde el PgAdmin
+
+
+1) El usuario estaba con habilitado=0 en la base de datos de sudocu
+
+select * from sudocu.usuarios_cuentas where email ='usuario.apell@universidad.edu.ar'
+update sudocu.usuarios_cuentas set habilitado=1 where email ='usuario.apell@universidad.edu.ar'
+
+2) El usuario tenia id_usuario_sudocu='' vacio, el campo id_usuario_sudocu tiene que ser igual al id que devuelve de sudocu.usuarios
+
+select * from sudocu.usuarios where email ilike '%herreromariela@gmail.com%' 
+Copiar el campo id y reemplazarlo en la siguiente consulta
+update sudocu.usuarios_cuentas set id_usuario_sudocu='794c1ca1-756c-489f-8c6c-f45a36c43a13' where email ='inspeccion.universidad.diaz@gmail.com'
+
+id_usuario en la tabla sudocu.usuarios tiene que coincider con id_usuario_sudocu
+Se probo y se pudo ingresgar correctamente
+
+------------------------------------
+Error al ingresar a Sudocu - 3
+------------------------------------
+
+El usuario puede ingresar a arai, pero al entrar a sudocu, la pagina queda cargando en blanco
+
+El usuario no tenia registrado el sudocu_unique_id	
+El mismo se saco de la tabla sudocu.usuarios (id_usuario) y se le asigno el mismo a sudocu.usuarios_cuentas
+en la columna id_usuario_sudocu
+
+select * from sudocu.usuarios where email ilike'%eweksler@yahoo%'
+Modificar el sudocu unique id
+
+------------------------------------
+Error al ingresar a Sudocu - 4
+-----------------------------------
+
+ERROR:
+No se puede agregar el nuevo canal ya que el usuario con DNI=x no existe en la tabla de personas
+
+Cambiar DNI de usuario:
+
+select * from sudocu.usuarios where dni='25648783'
+select * from sudocu.usuarios_cuentas where email='inspeccion.universidad.diaz@gmail.com'
+Cambiar DNI en la DB
+
+------------------------------------
+Error al ingresar a Sudocu - 5
+-----------------------------------
+
+SELECT * FROM sudocu.usuarios_cuentas where email ilike '%vidalmanuela740@gmail.com%';
+En la columna id_usuario_sudocu la usuaria no tenia nada, sacarlo de :
+select * from sudocu.usuarios where email ilike '%vidalmanuela740@gmail.com%';
+
+------------------------------------
+Documentos con distinto horario - Cambiar hora en la base de datos postgresql 
+------------------------------------
+
+https://dbtut.com/index.php/2019/01/21/how-to-change-timezone-on-postgresql/
+
+1) Entrar a psql
+
+su - postgres 
+psql
+
+2) Mostrar la fecha
+
+select now();
+2022-02-18 11:08:50.727759-05;
+
+3) Listar las timezones
+
+select * from pg_timezone_names ; 
+America/Argentina/Buenos_Aires
+
+4) Ejecutar en las distintas databases
+
+\l 
+
+set timezone='America/Argentina/Buenos_Aires';
+ALTER DATABASE sudocu SET timezone TO 'America/Argentina/Buenos_Aires';
+ALTER DATABASE usuarios SET timezone TO 'America/Argentina/Buenos_Aires';
+ALTER DATABASE araidocumentos2 SET timezone TO 'America/Argentina/Buenos_Aires';
+ALTER DATABASE postgres SET timezone TO 'America/Argentina/Buenos_Aires';
+ALTER DATABASE template0 SET timezone TO 'America/Argentina/Buenos_Aires';
+ALTER DATABASE template1 SET timezone TO 'America/Argentina/Buenos_Aires';
+
+------------------------------------
+Cambiar la hora de incorporacion de un documento (toma la hora de la PC)
+------------------------------------
+
+/* select * from sudocu.documentos where titulo='nota 1'; */
+
+update sudocu.documentos_relaciones set ts='2022-02-24 11:14:24.497' where id_documento_relacionado='dedb29c1-9dfb-4716-a302-4121a4ae091d';
+select * from sudocu.documentos_relaciones where id_documento_relacionado='dedb29c1-9dfb-4716-a302-4121a4ae091d';
+
+/* select * from sudocu.documentos where titulo like '%BENZI, Evangelina Silvana%'  */ 
+/* select * from sudocu.documentos_relaciones where id_documento_relacionado='9f55270e-83f5-4c1a-989b-9b375d9c0802' */
+
+select * from sudocu.documentos where id = 'b543d249-1c88-4757-beb6-1985ab12a6ef';
+/* update sudocu.documentos set ts='2022-03-03 15:00:43.679056' where id='b543d249-1c88-4757-beb6-1985ab12a6ef'; */
+
+------------------------------------------------
+Borrar un registro / Nota de sudocu / Pasar a borrador / Borrar una resolucion
+------------------------------------------------
+
+Ingresar a sudocu
+Ir a Gestion
+Buscar
+Ingresar Nro: 966
+Una vez encontrado, copiar el titulo, ej: "resolución para prueba eliminación"
+
+Luego, abrir PgAdmin o herramienta a gusto
+Hacer tunel:
+Como en este caso es test, la url es: test-sudocu.universidad.edu.ar
+Usuario ssh root
+Pass: test.sudocu2020
+
+Hacer tunel 5432 -> 127.0.0.1:5432
+Pass psql de test (sudocu): Oficina450
+
+
+Ejecutar: Select * from sudocu.documentos where titulo ilike '%Seminario acreditable “Taller de Tesis II" en el marco de la carrera Maestría en Educación, Imagen y Lenguajes Contemporáneos%';
+Si la consulta arroja mas de un dato verificar en los campos de la tabla 
+
+Copio el ID: 49a64bb1-97e7-489d-a823-32f38b9301bb, y lo reemplazo en las siguientes consultas:
+
+--------------------------------------------------
+
+DELETE FROM sudocu.ultimos_eventos WHERE id_documento = 'c58acae8-2493-4fe6-af3e-c19feb81d069' and tipo_evento in (4,15);
+
+UPDATE sudocu.documentos_vistas SET id_evento = (SELECT uid FROM sudocu.eventos WHERE id_documento='c58acae8-2493-4fe6-af3e-c19feb81d069'
+AND tipo_evento IN (8,11) ORDER BY id DESC LIMIT 1), cod_vista ='DOC' 
+WHERE id_documento ='c58acae8-2493-4fe6-af3e-c19feb81d069' AND cod_vista IN ('DOC','ARA','AAR','APU');
+
+DELETE FROM sudocu.documentos_vistas WHERE id_documento = 'c58acae8-2493-4fe6-af3e-c19feb81d069' AND cod_vista = 'APE';
+
+DELETE FROM sudocu.eventos WHERE id_documento = 'c58acae8-2493-4fe6-af3e-c19feb81d069' and tipo_evento in (4,15);
+
+UPDATE sudocu.documentos set estado = 1, firmas='[]', documento = NULL where id = 'c58acae8-2493-4fe6-af3e-c19feb81d069';
+
+--------------------------------------------------
+
+Esto va a pasar el documento a estado 1, que es estado borrador, para asi se pueda eliminar
+
+Si el documento se repite, leer las categorias por ejemplo, hay algunas que son Pruebas para Consejo Superior y otras Consejo Superior y que las dos tendrian el mismo titulo
+
+------------------------------------------------
+Documento se ve incorrecto en vista previa
+------------------------------------------------
+
+Un documento se veia mal al abrirlo con la vista previa de sudocu
+Pero al usar el ojito para abrir, el documento se visualizaba correctamente
+
+Informan desde sudocu que la usuaria cambio algo de los pixeles en source code al cargar una tabla de word en el editor de texto de sudocu por eso la tabla salia cortada
+Se prueba y funciona correctamente
+
+------------------------------------------------
+Error en vista previa
+------------------------------------------------
+
+Los documentos muestran versiones viejas y alteradas sin motivo aparente 
+bajar el stack de sudocu y tirar 
+docker system prune
+docker stack deploy --with-registry-auth --compose-file sudocu.yml sudocu
+
+------------------------------------------------
+
+Error: Write EPIPE
+
+Se arregla replicando todos los contenedores menos el memcached
+
+------------------------------------------------
+Documentos de Sudocu que quedaron como TRAMITE pero son EXPEDIENTES
+------------------------------------------------
+
+/*select * from sudocu.documentos where titulo like '%Fontana Cuello%'*/
+/*select * from sudocu.documentos where titulo ilike '%Convenio de Pasantías Educativas entre la Universidad Nacional de localidad y la institución%'*/
+
+/*select * from sudocu.documentos where titulo ilike '%volver a borrador 2 (fuera de expediente)'*/
+NOTA - 270 / 2022 - SUDOCU - título: volver a borrador 2 (fuera de expediente)
+Cambiar id_tipo: 14
+
+------------------
+Actualizaciones
+------------------
+
+---------------------------------------
+Actualizacion 1.2.6 a 1.2.7
+---------------------------------------
+
+Duplicacion de usuarios en la base de datos sudocu:
+https://herramientas.comunidad.siu.edu.ar/aplicacion.php?ah=st61cb1b7b91d371.51135449&ai=extranet||45000050&ap=yom19AMXkicYD80XWNWFWDIxk9PUQ%2FPRAdIBwzPitVGDbBvOh%2B5rzcdYSfdm66dl1p5hK%2BfRUhdkqp0BNMG53rTPSrBmc28n%2FDyFIs%2Bs0dzbAff1%2BAPT2BlIquVGY1HZfuTE0V%2BdWtp4RNp7HAMVwLbX1Bq4Sg%3D%3D
+
+Borrar la Constraint desde pgAdmin: idp_id_usuario_sudocu_usuarios_cuentas_un 
+
+ALTER TABLE sudocu.usuarios_cuentas DROP CONSTRAINT IF EXISTS idp_id_usuario_idp_usuarios_cuentas_un;
+
+Estos comandos comando nos va a devolver registros duplicados:
+
+ALTER TABLE sudocu.usuarios_cuentas ADD CONSTRAINT idp_id_usuario_idp_usuarios_cuentas_un UNIQUE (idp,id_usuario_idp);
+ALTER TABLE sudocu.usuarios ADD CONSTRAINT username_usuarios_un UNIQUE (username);
+ALTER TABLE sudocu.usuarios ADD CONSTRAINT email_usuarios_un UNIQUE (email);
+ALTER TABLE sudocu.usuarios ADD CONSTRAINT dni_usuarios_un UNIQUE (dni);
+
+Devuelve los repetidos ----------> 'dddeee@gmail.com';
+
+select * from sudocu.usuarios where username = 'dddeee@gmail.com';
+
+Copiar el ID
+
+Copiar el siguiente orden:
+
+delete from sudocu.usuarios_permisos where id_usuario = '0b9346e9-ae65-480f-b8d2-972b98f88f7a';
+delete from sudocu.usuarios_perfil where id_usuario = '0b9346e9-ae65-480f-b8d2-972b98f88f7a';
+delete from sudocu.usuarios where id = '0b9346e9-ae65-480f-b8d2-972b98f88f7a';
+
+---------------------------------------
+Actualizacion 1.2.9 a 1.3.2
+---------------------------------------
+
+> Al migrar la base de datos a 1.3.2 puede pedirnos agregar una IP al pg_hba.conf, agregarla y reiniciar el postgres
+
+Al actualizar de version a 1.3.2 el SIU modifico en su archivo (entre otros) : config-api-server.json con la siguiente ruta
+
+> Agregar en linea 89 de config/config-api-server.json:   
+     "cert_pem": "/app/certificado_idp.crt"
+
+Tambien, para que estos cambios fueran tomados, modificamos el sudocu.yml debe ser cambiado con la misma ruta 
+
+> Agregar en sudocu.yml :
+En api server
+      configs
+              - source: usuarios_idp_saml_cert
+               target: /app/certificado_idp.crt
+			   
+---------------------------------------
+Actualizacion 1.3.4 a 1.3.5
+---------------------------------------
+
+Actualizar sudocu documentos duplucados ERROR SOLVED
+
+https://expedientes.siu.edu.ar/docs/1.4-to-1.5/#control-de-duplicados
+
+
+Esta actualizacion arregla el error de la vista previa, en el cual se visualizaba al documento en un estado anterior
+
+En la versión 1.3.5 se agrega una restricción en la tabla de documentos para evitar que puedan existir documentos con el número visible repetido.
+https://sudocu.dev/docs/documentacion-tecnica/faq-tecusuario/#query-para-detectar-numeraci%C3%B3n-repetida
+
+------------------------------------------------
+Bug de la version 1.3.6
+
+Al borrar un borrador, la version 1.3.6 no deja subir mas documentos
+
+UPDATE sudocu.documentos SET numero_asignado = NULL where estado = -1
+
+------------------------------------------------
+
+Error al firmar / autorizar
+
+Si los documentos quedan esperando autorizacion una vez firmados, verificar que docs_docsworker este levantado
+
+Si docs_docsworker no levanta, mirar los logs del mismo y proceder
+Nos paso un caso que no levantaba porque pedia que una usuaria se agsigne a determinada area, pedirle a x que la asigne y volver a levantar
+Un solo documento te puede romper todo docs
+
+El error se producía al querer incorporar el documento en el expediente ya que el mismo no se encontraba en el área, por lo tanto, uno de los motivos de la caída del servico puede darse ante la multiplicidad de casos similares.
+Para los documentos que provienen de la integración con un sistema SIU siempre el expediente debe encontrarse en el área del usuario autorizante.
+
+Para este error se proceden a crear los perfiles a administrador transversalmente a todos los sistemas con los dni de los sysadmin
+
+Migrar sudocu > Migrar base de datos de sudocu y de arai documentos > Nuxeo / Nuxeo/data
+
+------------------------------------------------
+Error al autorizar un documento: No funciona el auto refresco / Error al subir archivos mayores a 10 MB
+
+Al enviar un documento a autorizar a la bandeja de aturoizaciones, se requiere un F5 o un reload de la pagina para que apareza en dicha bandeja.
+Cuando esta en la bandeja y es autorizado, el mismo no va a desaparecer a menos que actualizemos la pagina.
+En la consola del navegador va a figurar un error de WEBSOCKET / websocket.io.
+
+En realidad este error se presento cuando teniamos un esquema de Un manager publico (con traefik) y los demas en una red privada
+Al aislar todos los manager y todos los worker a una red privada, el problema dejo de suceder
+
+Este error tambien sucedia junto con uno al subir archivos mayores a 10M. El sistema no lo permitia
+Al aislar todos los manager y los worker a una red privada o exponer todos a una red publica, este problema tambien dejo de suceder
+
+------------------------------------------------
+Limites - Limits y reservations en el archivo sudocu.yml, bloque api
+
+   limits:
+       cpus: '1'
+       memory: 4096M
+   reservations:
+       cpus: '0.05'
+       memory: 64M
+	   
+Los limits indican el máximo de recursos que va a usar el servicio, y los reservations indican el mínimo de recursos.
+El servicio del api server de SUDOCU en limits necesita al menos 1 CPU y 4096M de RAM
+El servicio PDF de sudocu tambien necesita extender su limit, asi como el de arai docs 
+
+------------------------------------------------
+Consultar numeracion repetida:
+https://sudocu.dev/docs/documentacion-tecnica/faq-tecusuario/#query-para-detectar-numeraci%C3%B3n-repetida
+
+1- 
+ SELECT * FROM sudocu.documentos WHERE estado = -1 and numero_asignado <> NULL
+ 
+ 
+2- 
+ WITH numeros AS (
+ SELECT id_tipo, nro->>'numero_asignado' AS numero_asignado, array_agg(id) AS ids, count(*) 
+ FROM sudocu.documentos 
+ WHERE nro->>'numero_asignado' IS NOT NULL AND estado NOT IN (22)
+ GROUP BY id_tipo, nro->>'numero_asignado'
+ HAVING count(*) > 1 ORDER BY count(*) DESC 
+), 
+numeros_duplicados AS (
+ SELECT 
+ d.id AS id_documento, 
+ id_tipo, 
+ de.nombre AS estado,
+ dt.nombre AS tipo_documento,
+ dt.esencia AS esencia,
+ d.nro AS objeto_nro,  
+ d.nro->>'numero_asignado' as numero_asignado, d.nro->>'numero_asignado' || ' *#' || ROW_NUMBER() OVER (PARTITION BY d.id_tipo ORDER BY nro->>'numero_asignado') AS  nro_fix,  
+ a.nombre AS area, 
+ u.nombre||' '||u.apellido AS usuario,
+ v.nombre AS vista
+ FROM sudocu.documentos d
+ inner JOIN sudocu.documentos_vistas dv ON d.id = dv.id_documento 
+ left JOIN sudocu.areas a ON dv.id_area = a.id
+ left JOIN sudocu.documentos_estados de ON d.estado = de.id
+ LEFT JOIN sudocu.documentos_tipos dt ON d.id_tipo = dt.id
+ left JOIN sudocu.usuarios u ON dv.id_usuario = u.id
+ LEFT JOIN sudocu.vistas v ON dv.cod_vista = v.codigo 
+ WHERE d.id = ANY(SELECT unnest(ids) FROM numeros) AND v.nombre IS NOT NULL  
+ GROUP BY d.id, nro->>'numero_asignado', de.nombre, dt.nombre, dt.esencia, a.nombre, u.nombre, u.apellido, v.nombre
+ ORDER BY nro->>'numero_asignado', id_tipo
+)
+SELECT * FROM numeros_duplicados
+
+------------------------------------------------
+
+Error -> No se pueden crear resoluciones de consejo superior 
+Error_numero_duplicate - No se pueden crear expedientes
+Arroja el error: no se pudo guardar el documento. El numero ya fue asignado. numero ya fue asignado 
+
+Al migrar al ambiente de produccion nuevo, se genero un conflicto en la creacion de RCS. 
+El ambiente viejo tenia como organismo: "UUNN" en config/config-api-server
+El ambiente nuevo tiene como organismo: "universidad" en config/config-api-server
+
+Esto generaba un conflicto en la base de datos ya que se comenzaban a crear documentos con la sigla universidad, cargamos la base de datos y ejecutamos: 
+Verificar en la base de datos sudocu.documentos que la sugla que figura (UUNN) coincida con la del archivo config/config-api-server
+
+UPDATE sudocu.documentos
+SET nro = jsonb_set(nro, '{organismo}', '"UUNN"', false)
+WHERE nro ->> 'organismo' = 'universidad';
+
+En test es UUNN, la consulta es invertida, intercambiando UUNN por universidad y viceversa
+
+------------------------------------------------
+Vista previa -  no funciona en borradores
+------------------------------------------------
+
+>Cambiar sudocu.yml:
+
+En los volumenes del api-server:
+      - /mnt/sudocu-files/tmp:/sudocu_tmp
+En los volumenes finales:
+      tmp:
+	  
+>Cambiar config-api-server:
+
+En la seccion carpetas
+    "archivos": "/sudocu_tmp"
+	
+>Crear una carpeta /tmp en sudocu-files (Ver en cualquiera de los entornos)
+
+Dejar el servicio "sudocu-api-server" con una sola replica en el stack
+
+------------------------------------------------
+Habilitar / Inhabilitar / Mostrar Novedades
+------------------------------------------------
+
+nano config-api-server.json
+
+buscar "gestion":"vistas":"frecuencia_actualizacion_cron"; "inbox": "habilitado"; "inbox":"periodo_horas";
+editar: true/false
+
+volver a desplegar el stack
+
+------------------------------------------------
+Eliminar espacio - Limpiar sudocu/nfs - vol - carpeta cache
+------------------------------------------------
+
+https://www.sudocu.dev/docs/documentacion-tecnica/faq-tecusuario/#mantenimiento-preventivo-para-liberar-espacio-en-la-cach%C3%A9-de-visualizaci%C3%B3n-de-expedientestr%C3%A1mites
+https://foro.comunidad.siu.edu.ar/t/respondido-consumo-de-disco-en-el-nfs/26518/4
+
+1- En el nfs remover todo lo de la carpeta cache
+du -bsh *
+
+cd /vol/sudocu-files/cache
+rm *
+
+
+2- En la base de datos, esquema sudocu ejecutar:
+
+DELETE FROM sudocu.archivos_cache
+
+------------------------------------------------
+
+Problema con la visualización de un expediente. Un expediente/tramite NO se ve
+
+"Tenemos un expediente que contiene dos documentos pero cuando realizamos la previsualización nos muestra solo uno de ellos"
+Borramos la cache como en el punto de arriba y se soluciono
+
+------------------------------------------------
+
+Foro memoria sudocu: 
+
+encontramos que sudocu-api-server, por mucha memoria que le asignaramos, daba error cuando node intentaba usar mas de 2G (asi lo acusó en los logs)
+investigando un poco vimos que tenia que ver con la variable max-old-space-size que afecta la memoria que puede usar el motor javascript V8 (que usa nodejs). 
+Le configuramos esa variable para que use mas memoria y las cosas mejoraron mucho
+
+Para ver que valor tiene actualmente la variable, hay que entrar al contenedor de api-server y correr este comando:
+
+node -e ‘console.log(node heap limit = ${require("v8").getHeapStatistics().heap_size_limit / (1024 * 1024)} Mb)’
+
+------------------------------------------------
+
+Ocurrio un error al obtener las solicitudes de autorizacion 
+
+Este error en sudocu se da porque tenemos documentos sin autoriza/anular en la bandeja de Huarpe
+Una vez los anulemos, el error desaparece
+
+------------------------------------------------
+
+Error al autorizar > Se queda sin autorizar porque nuxeo se quedo sin espacio.
+Tiene 2 discos de 160
+------------------------------------------------
+
+Error en arai documentos -> Los logs de arai documentos daban error en diaguita2023.universidad.edu.ar
+ese enganche (rest hook) estaba roto porque en diaguita habia un archivo (instalador.env) que llamaba a diaguita2023.universidad.edu.ar
+cuando debia llamar a diaguita.universidad.edu.ar. Se cambio al migrar a principio de año el ejercicio
+
+------------------------------------------------
+
+Expediente sudocu no muestra todos los archivos incorporados: 
+
+Al enviarlo a autorizar o, a pasarlo de estado a enviados-->"en transito" el problema se soluciono y nos deja ver el expediente completo
+------------------------------------------------
+
+clientmessage: 'timeout exceeded when trying to connect',
+query: '',
+query_params: {},
+url: '/mpc/numeradores/?dir=ASC&offset=0&orden=id_numerador',
+msg: 'error_pg_pool_t_connect',
+type: 'error',
+id_err: 'l5dcj',
+trace: 'Error: timeout exceeded when trying to connect\n' 
+
+Error de timeout para crear / transformar expedientes. Se soluciono con un reinicio del stack sudocu
+
+
+Nico informa que el error se soluciono y anda todo bien
+El error de diaguinta en los logs de docs sigue
+El error del timeout en los logs de sudocu desaparecio
+
+------------------------------------------------
+
+Actualizacion de docs
+
+Cuando ejecutamos 
+docker pull hub.siu.edu.ar:5005/siu-arai/docs-api/api:$VERSION
+editar el version por:
+docker pull hub.siu.edu.ar:5005/siu-arai/docs-api/api:v1.x.x
+
+No olvidar la v. 
+
+
+Editar el migrar.env
+
+Backup de la base de datos:
+pg_dump -b -O -x --clean --create --disable-triggers --if-exists -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USERNAME} -d ${DB_DBNAME} -f dump_11.sql
+
+Actualizar docs:
+
+
+docker stack rm docs
+
+docker secret create docs_stamper_keystore /ruta/a/keystore_stamper.p12
+
+ARAI_DOCS_STAMPER_KEYSTORE_PASS = <password utilizada para crear el keystore_stamper.p12>
+ARAI_DOCS_STAMPER_KEYSTORE_ALIAS = <valor del parametro -name del paso "Exportar PKCS#12 bundle" de la guia>
+
+DOCS_CONEXION_PERSONAS=$(cat << EOF
+"{base_uri:'personas-api:8080/api/v1/',method:'basic',user:'documentos',password:'123'}"
+EOF
+)
+printf $DOCS_CONEXION_PERSONAS | docker secret create docs_conexion_personas -
+
+docker stack deploy --with-registry-auth --compose-file prod/arai/util/docs_actualizar_base.yml docs_actualizar_base
+
+docker service logs docs_actualizar_base_update -f
+docker stack rm docs_actualizar_base
+
+
+https://expedientes.siu.edu.ar/docs/1.6.0/1.5-to-1.6/#arai-documentos
+
+https://expedientes.siu.edu.ar/docs/1.6.0/1.5-to-1.6/
+
+------------------------------------------------
+
+
+Pendiente de firma en test Diaguita
+
+Habra cambiado la url de test diaguita?
+
+Error sudocu: 
+
+docs_docs-worker.1.j49c7gfwvpjs@eei-test-manager2    | [2024-04-29 10:52:54] RESTHOOKS.ERROR: No se pudo enviar la notificación
+docs_docs-worker.1.j49c7gfwvpjs@eei-test-manager2    |  Client error: `POST https://test-diaguita.universidad.edu.ar/rest/v1/notificaciones/documento` resulted in a `403 Forbidden` response:
+docs_docs-worker.1.j49c7gfwvpjs@eei-test-manager2    | <!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML 2.0//EN">
+docs_docs-worker.1.j49c7gfwvpjs@eei-test-manager2    | <html><head>
+docs_docs-worker.1.j49c7gfwvpjs@eei-test-manager2    | <title>403 Forbidden</title>
+docs_docs-worker.1.j49c7gfwvpjs@eei-test-manager2    | </head><body>
+docs_docs-worker.1.j49c7gfwvpjs@eei-test-manager2    | <h1>Forbidden (truncated...)
+docs_docs-worker.1.j49c7gfwvpjs@eei-test-manager2    |  {"arai-documentos-uid_notificacion":"c64620e0-0d66-482b-9a60-2e3c053fcefa"} []
+
+
+
+------------------------------------------------
+error_SAML assertion not yet valid : Reiniciar el servidor y los workers
+
+------------------------------------------------
+
+
+En el sistema intervienen 3 parámetros para la gestión de archivos adjuntos:
+"archivos_adjuntos": {
+     "max_mb": 100, // Tamaño máximo por archivo
+     "sum_max_mb": 100, // Tamaño máximo de todos los adjuntos por documento
+     "max_cant": 100 // Cantidad máxima de adjuntos por documentos
+   },
+   
+   
+   
+10.1.7.147
+
+
+
+MAIN.ERROR: Token Invalido => DateNow: 2024-06-10 10:55:26 > Expiration: 2024-06-10 10:45:05
+
+
+------------------------------------------------------------
+
+Si el firmador no funciona correctamente, descargar una nueva version y ejecutar el archivo con esa nueva version, buscarla en archivos de programax68 SIU-Firmador
+
+https://webapps-datastorage.presi.unlp.edu.ar/firma-digital/Firmador-SIU/
+
+
+------------------------------------------------------------
+
+SELECT * FROM sudocu.documentos where numero_asignado ilike '%EXP%-%16642%/%2024%'; 
+
+
+UPDATE diaguita.scp_convocatorias SET numero_expediente_exportacion = 'ID_EXPEDIENTE_SUDOCU' WHERE id_convocatoria = ID_TRAMITE; 
+
+----------------------------x--------------------------------
+
+Actualizar en distintos ambientes
+
+DEV:
+
+docker run --rm \
+  --env SUDOCU_DB_HOST=xxx.xxx.xxx.x \
+  --env SUDOCU_DB_NAME=sudocu \
+  --env SUDOCU_DB_PORT=5432 \
+  --env SUDOCU_DB_USER=postgres \
+  --env SUDOCU_DB_PASSWORD=qwerty \
+  ungs/sudocu-db-instalador:1.4.14
+  
+CAPA:
+
+docker run --rm \
+  --env SUDOCU_DB_HOST=xxx.xxx.xxx.x \
+  --env SUDOCU_DB_NAME=sudocu \
+  --env SUDOCU_DB_PORT=5432 \
+  --env SUDOCU_DB_USER=postgres \
+  --env SUDOCU_DB_PASSWORD=bodoque.123 \
+  ungs/sudocu-db-instalador:1.4.14  
+  
+TEST:
+
+docker run --rm \
+  --env SUDOCU_DB_HOST=xxx.xxx.xxx.x \
+  --env SUDOCU_DB_NAME=sudocu \
+  --env SUDOCU_DB_PORT=5432 \
+  --env SUDOCU_DB_USER=postgres \
+  --env SUDOCU_DB_PASSWORD=pass \
+  ungs/sudocu-db-instalador:1.4.14  
+  
+PROD:
+
+docker run --rm \
+  --env SUDOCU_DB_HOST=xxx.xxx.xxx.x\
+  --env SUDOCU_DB_NAME=sudocu \
+  --env SUDOCU_DB_PORT=5432 \
+  --env SUDOCU_DB_USER=postgres \
+  --env SUDOCU_DB_PASSWORD=pass \
+  ungs/sudocu-db-instalador:1.4.14  
+
+  
+------------------------------------------------------------
+
+No se comenta en el config  config-api-server.json con #, porque da error
+
+----------------------------x--------------------------------
+
+Ejemplo de configuracion en produccion:
+
+En postgres.cofn -> Nuxeo:
+
+Se cambia  shared_buffers = 128MB a shared_buffers = 2Gg
+Cantidad de memoria que se reserva para almacenar en caché 
+
+Se cambia effective cache size a 6GB, estaba comentado 
+es una estimación de la cantidad de memoria RAM que el sistema operativo tiene disponible para la caché de discos
+
+maintenance_work_mem = 512MB, estaba comentado
+checkpoint_completion_target = 0.9, estaba comentado
+wal_buffers = 16MB, estaba comentado
+default_statistics_target= 100, estaba comentado
+random_page_cost = 1.1 estaba comentado
+effective_io_concurrency= 200, estaba comentado
+max_worker_processes, estaban todos comentados
+
+
+Editar estas configuraciones en test
+
+-----------------------------------
+
+Consulta para cantidad de conexiones en tiempo real:
+
+SELECT sum(numbackends) FROM pg_stat_database;
+
+-----------------------------------
+
+https://pgtune.leopard.in.ua/
+
+-----------------------------------
+
+select count(*) from sudocu.documentos
+where numero_asignado <> nro->>'numero_asignado'
+and estado <> 22
+
+si eso les devuelve mas que cero, ejecuten esto:
+
+update sudocu.documentos
+set numero_asignado = nro->>'numero_asignado'
+where numero_asignado <> nro->>'numero_asignado'
+and estado <> 22
+
+-----------------------------------
+
+Error en importacion express
+
+Los documentos quedaban en espera, solo los de importacion express, se soluciono con un reinicio del stack de sudocu. Para los documentos que quedaron en espera ejecutar esta conuslta uno por uno y vuelven a estado borrador
+Tambien se borro el cache
+
+SELECT * from sudocu.documentos WHERE estado = 30;
+
+DELETE FROM sudocu.ultimos_eventos WHERE id_documento = '8c29fe60-173d-40fd-8319-7f6faf5a424e' and tipo_evento in (4,15);
+UPDATE sudocu.documentos_vistas SET id_evento = (SELECT uid FROM sudocu.eventos WHERE id_documento='8c29fe60-173d-40fd-8319-7f6faf5a424e'
+AND tipo_evento IN (8,11) ORDER BY id DESC LIMIT 1), cod_vista ='DOC' WHERE id_documento ='8c29fe60-173d-40fd-8319-7f6faf5a424e' AND cod_vista IN ('DOC','ARA','AAR','APU');
+DELETE FROM sudocu.documentos_vistas WHERE id_documento = '8c29fe60-173d-40fd-8319-7f6faf5a424e' AND cod_vista = 'APE';
+DELETE FROM sudocu.eventos WHERE id_documento = '8c29fe60-173d-40fd-8319-7f6faf5a424e' and tipo_evento in (4,15);
+UPDATE sudocu.documentos set estado = 1, firmas='[]', documento = NULL where id = '8c29fe60-173d-40fd-8319-7f6faf5a424e';
+
+-----------------------------------
+
+No se pudo copiar el documento invalid input syntax for type numeric " "
+No se pudo crear el documento invalid input syntax for type numeric " "
+
+sudocu_api-server.1.ibhtuapivjcy@eei-worker3    |   msg: 'error_catch',
+sudocu_api-server.1.ibhtuapivjcy@eei-worker3    |   type: 'error',
+sudocu_api-server.1.ibhtuapivjcy@eei-worker3    |   id_err: '2hd83',
+sudocu_api-server.1.ibhtuapivjcy@eei-worker3    |   trace: 'error: invalid input syntax for type numeric: " "\n' +
+
+-- caso UUNN
+update sudocu.documentos
+set nro = '{"nro":20341,"anio":2024,"tipo":"RESREC","organismo":"UUNN","numero_asignado":" RESREC -  20341 /  2024 "}',
+numero_asignado=' RESREC -  20341 /  2024 ' where id='d504962c-2a40-4d6f-bc8a-11eeae69a859';
+caso 2) Si en cambio, tienen "organismo":"universidad" ejecuten esta consulta:
+-- caso universidad
+update sudocu.documentos
+set nro = '{"nro":20341,"anio":2024,"tipo":"RESREC","organismo":"UUNN","numero_asignado":" RESREC -  20341 /  2024 "}',
+numero_asignado=' RESREC -  20341 /  2024 ' where id='d504962c-2a40-4d6f-bc8a-11eeae69a859';
+
+en otra universidad se detectó que el problema pudo venir documentos borrados inconclusos por lo que se debe ejecutar esta consulta:
+update sudocu.documentos set estado = -1 where id in ('c9ebf959-a8a6-4465-88e9-f8e7608cf346','1bb8aded-a0b0-4395-b846-d49ffbbec8de');
+
+Indican desde UNGS que con estas consultas se destraba el problema con el tipo de documento RESREC.
+
+-----------------------------------
+
+Este comportamiento inestable de la herramienta se encuentra analizada y resuelta en la próxima versión del sistema que saldrá a la brevedad junto a la SEEI.
+
+-----------------------------------
+
+Asociaciones:
+
+En la DB sudocu.usuarios a sudocu.usuarios_cuentas se asocian con id e id_usuario_sudocu respectivamente.
+La base de datos de sudocu.usuarios y sudocu.usuarios_cuentas se asocian por el MAIL.
+
+-----------------------------------
+
+
+Si hay error en JSON, es el archivo de configuracion del sudocu
+
+-----------------------------------
+
+Error a un usuario que se le asignaba el area sudocu por defecto 	
+	
+sudocu_api-server.1.ieiw966s7wm2@eei-worker2    |   string: 'error_validacion_request',
+sudocu_api-server.1.ieiw966s7wm2@eei-worker2    |   clientmessage: 'Falló algún requerimiento de permisos para el usuario | Revisar detail del error en console',
+
+El area que este usuario necesitaba estaba deshabilitada, habilitarla desde sudocu MPC>Areas
+
+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

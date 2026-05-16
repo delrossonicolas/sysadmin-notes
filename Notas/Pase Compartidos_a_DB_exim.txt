@@ -1,0 +1,128 @@
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Realizar backup de las siguientes carpetas:
+Con el script: 
+
+2_Backup.sh
+
+/opt/exim
+/etc/exim
+/etc/panel
+/opt/panel
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Instalar proxysql:
+
+Con el script 
+
+1_proxysql_installation.sh
+
+Si arroja lo siguiente, el proxy funciona:
+
++-------------------------+
+| @@hostname              |
++-------------------------+
+| mysqlfz05.linux.backend |
++-------------------------+
+
+Contestar Y
+
+Saber si se conecta proxysql:
+
+mysql -h 127.0.0.1 -P 6033 -u proxyuser -p
+3ahrHTX7vs
+
+mysql> select @@hostname;
+
+(Ya realizados: anotados en la lista )
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Reemplazo de exim compartidos a Base de datos
+
+**PASOS PARA PONER A FUNCIONAR EL EXIM CON LOCALDOMAINS, USERDOMAINS Y VALIASES EN BBDD**  
+
+* NOTA: /opt/exim es un path compartido por toda la nube - Asi como /opt/panel
+
+**En el caso de ejecutar estos pasos en una nube, hay que asegurarse de que todos los servidores queden con la misma configuración en cada paso (hay archivos que son locales a cada servidor), así como de ejecutar los scripts migradores/fixeadores en cada uno de los servidores**  
+  
+**1) Verificar que el Lookup "mysql" se encuentre habilitado en exim**  
+`/opt/exim/bin/exim -bV | grep -o mysql`
+NOTA: si da vacio, recompilar exim con este lookup  
+  
+**2) Agregar como primera línea en el configure de exim, la conexión a BD**  
+Para cada servidor de la nube:
+`hide mysql_servers = 127.0.0.1::6033/nubeXXX/proxyuser/XXXXXX`
+NOTA: en este punto se puede modificar el configure completo pero guardándolo en algún archivo temporal para luego ejecutar el paso 5 mas rápidamente.  
+  
+**3) Chequear que se conecte a la BD nubeXXX el usuario proxyuser
+
+**4) Ejecutar los scripts para fixear/migrar la info a BD**  
+Para cada servidor de la nube:
+`/scripts/fixexim -B`
+`/root/migrate_valiases.php`
+  
+NOTA: verificar que se hayan insertado dominios y los valiases  
+`/scripts/fzSqlExec.php -b exim -e "select count(*) from eximdomains"`
+`/scripts/fzSqlExec.php -b exim -e "select count(*) from eximvaliases"`
+
+**5) Modificar el configure de exim por la versión que utiliza SQL y los scripts de perl**  
+* `/opt/exim/[startup.pl](http://startup.pl/)` de la forma siguiente (como ejemplo se usa como base de datos *nube041*)  
+`my $s_dsn = "dbi:mysql:database=$dbname;host=$dbhost";`
+por  
+`my $s_dsn = "dbi:mysql:database=nube041;host=127.0.0.1;port=6033";` 
+  
+* `/opt/exim/[startup-fzinc.pl](http://startup-fzinc.pl/)` de la forma siguiente (como ejemplo se usa como base de datos *nube041*)  
+`my $s_dsn = "dbi:mysql:database=$dbname;host=$dbhost";`
+por  
+`my $s_dsn = "dbi:mysql:database=nube041;host=127.0.0.1;port=6033";`
+
+(/opt/exim/[startup-fzinc.pl] son dos)
+
+**5.5) Cuando se sube el configure nuevo, cambiar hostname a hostname-dr.dominio.com (Editar el script de subida ya que este saca el hostname de /etc/hostname y no es lo mismo para virtuales)
+  
+**6) Reiniciar el servicio exim nuevamente**  
+Para cada servidor de la nube:
+`service exim restart`
+
+**7) Modificar /etc/panel/server.conf para asignar "YES" a la variable sgte:**  
+Para cada servidor de la nube:
+```  
+EXIM_USERDOMAINS_LIST_ON_DB="YES"  
+```  
+  
+**8) Modificar /etc/panel/services.conf para asignar:**  
+Para cada servidor de la nube:
+```  
+exim_valiases_type="db"  
+exim_configuration_file="/etc/exim/configure" (o la ruta al archivo configure)  
+```  
+  
+**9) Podría ser necesario ejecutar el `fixexim` nuevamente, para asegurarse que no se pierdan dominios durante el procedimiento del cambio**  
+Para cada servidor de la nube:
+`/scripts/fixexim`  
+
+(((Se puede ejecutar el fixexim en un solo servidor en la nube ya es suficiente))
+
+NOTA: ya no es necesario el -B porque ahora panel esta configurado.
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Paso 7 y 8 con SED:
+
+7) 
+cat /etc/panel/server.conf | grep EXIM_USERDOMAINS_LIST
+
+sed 's|^EXIM_USERDOMAINS_LIST_ON_DB="NO"|EXIM_USERDOMAINS_LIST_ON_DB="YES"|' /etc/panel/server.conf | grep EXIM_USERDOMAINS_LIST
+sed -i 's|^EXIM_USERDOMAINS_LIST_ON_DB="NO"|EXIM_USERDOMAINS_LIST_ON_DB="YES"|' /etc/panel/server.conf
+
+
+8)
+cat /etc/panel/services.conf | grep valiases_type
+
+sed 's|^exim_valiases_type="file"|exim_valiases_type="db"|' /etc/panel/services.conf | grep valiases_type
+sed -i 's|^exim_valiases_type="file"|exim_valiases_type="db"|' /etc/panel/services.conf | grep valiases_type
+
+
+cat /etc/panel/services.conf | grep exim_configuration_file
+
+

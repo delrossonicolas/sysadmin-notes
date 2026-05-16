@@ -1,0 +1,161 @@
+------------------------------------------
+Bases de datos Mysql
+------------------------------------------
+
+Si el parametro seconds behind master esta en null, es porque se corto la duplicacion, si esta en 0 es porque esta corriendo bien
+Si last_IO error no dice nada es porque esta ok
+
+./while.sh es el script que arregla la replicacion 
+luego hay que listar las bases y pisar las que fueron afectadas
+ 
+------------------------------------------------------
+
+Se crea un pasos a seguir para las cuentas que ocupen mas de 3gb en MYSQL
+
+------------------------------------------------------
+
+Los lunes llega un mail, verificar esas cuentas y notificar a soporte con un JIRA
+
+
+1. En el correo enviado nos figura el nombre de la base de datos y el servidor que la contiene
+
+mysql
++-------------------------+-----------+
+| Base de Datos   | Peso (GB) |
++-------------------------+-----------+
+| xxxxxxx |      9.52 | 
++-------------------------+-----------+
+
+
+2. Se informa al área de soporte a través de un JIRA con el siguiente mensaje
+
+Xontactar a al usuario propietario de esta base.
+
+ xxxxxx |      9.52  
+
+Necesitamos que tome acción sobre ella y reduzca el contenido a menos de 3 GB para seguir en un plan compartido.
+
+De lo contrario, ofrezcan plan acorde en un cloud / dedicado.
+
+Sugiero recordarle que en caso de que no tome acción, se va a suspender la cuenta.
+
+Desde ya muchas gracias.
+Saludos."
+
+3. Una vez soporte nos haga saber por JIRA que el usuario fue debidamente informado, el mismo cuenta con 15 días a partir de la notificación para reducir el espacio.
+
+4. Pasados los 15 días, conectarse por SSH al servidor que tiene la IP flotante activa.
+
+Verificamos que tenga la flotante activa si cuando ingresamos al servidor aparece un mensaje como el siguiente
+
+####### IP flotante xxx.xx.xx.xx levantada ACA en mysql #######
+
+De lo contrario, nos aparecerá lo siguiente y deberemos cambiar de servidor
+
+####### IP flotante xxx.xx.xx.xx levantada ALLA en mysql #######
+
+
+5- Listar con el siguiente comando el espacio que ocupa la base de datos del cliente
+
+du -sh /var/lib/mysql/$CLIENTE
+11G     /var/lib/mysql/$CLIENTE
+
+
+Si la base de datos sigue siendo mayor a 3 GB, se debe suspender al cliente
+Buscar el dominio en BO
+
+6-. Ingresar por SSH a panel3 y ejecutar la suspensión con motivo 3 (Recursos)
+
+./fz3 suspend $CLIENTE 3
+
+Si es un cliente Windows, suspendemos con
+./fz3 usuario@dominio
+
+por ejemplo 
+./fz3 aaa@aaa.com
+
+>Podemos verificar luego el esatdo de la cuenta con
+
+./datos.sh $CLIENTE
+
+Si es un cliente Windows, verificamos con
+./datos.sh usuario@dominio
+
+
+por ejemplo 
+./datos.sh w1601177@biartic.com
+
+8- Una vez terminado, dar aviso a soporte a través del JIRA correspondiente que el usuario fue suspendido
+
+"Se suspende por persistir exceso.
+Saludos."
+
+9-. Hay un documento actualizado con los JIRA abiertos contra soporte de los clientes esperando notificación
+Idealmente, dar prioridad a los usuarios con bases de datos más pesadas
+
+https://drive.empresa.com/apps/files/files/1103923?dir=/IT%20Linux&openfile=true
+
+------------------------------------------------------
+
+Borrar mysql viejo e instalar nuevo
+
+wget -c http://panel.net/panel/panel-Platform/MySQL-5.7/mysql-community-client-5.7.44-1.el6.x86_64.rpm
+yum -y remove mysql\*-community-release
+yum -y install https://dev.mysql.com/get/mysql80-community-release-el7-11.noarch.rpm
+rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-mysql*
+yum-config-manager --disable mysql80-community >/dev/null
+yum-config-manager --enable mysql57-community >/dev/null
+rm -vf /etc/yum.repos.d/mysql-community.repo.rpmsave
+yum -y install --downloadonly --downloaddir=. mysql-community-client
+
+yum -y remove mysql-server mysql-client mysql-community-libs mysql-community-common mysql-community-devel
+yum -y install https://dev.mysql.com/get/mysql57-community-release-el7-11.noarch.rpm
+yum-config-manager --disable mysql80-community
+yum-config-manager --enable mysql57-community
+yum -y install mysql-server
+
+
+Esto puede borrar el snmp
+------------------------------------------------------
+Actualizar Mysql Client de 5.6 a.7
+
+------------------------------------------------------
+
+SNMP
+
+Chequear snmp
+
+[root@server99 ~] # whereis snmpd
+snmpd:[root@server99 ~] # ll /usr/sbin/snmpd
+ls: no se puede acceder a /usr/sbin/snmpd: No existe el fichero o el directorio
+
+[root@server00 ~] # whereis snmpd
+snmpd: /usr/sbin/snmpd /usr/share/man/man8/snmpd.8.gz
+[root@server00 ~] # ll /usr/sbin/snmpd
+-rwxr-xr-x 1 root root 31800 ene 25  2024 /usr/sbin/snmpd
+
+[root@server00 ~] # yum provides /usr/sbin/snmpd
+[root@server00 ~] # yum list net-snmp*
+Paquetes instalados
+net-snmp.x86_64                                                                                          1:5.7.2-49.el7_9.4                                                                                @updates
+net-snmp-agent-libs.x86_64                                                                               1:5.7.2-49.el7_9.4                                                                                @updates
+net-snmp-devel.x86_64                                                                                    1:5.7.2-49.el7_9.4                                                                                @updates
+net-snmp-libs.x86_64                                                                                     1:5.7.2-49.el7_9.4                                                                                @updates
+net-snmp-perl.x86_64                                                                                     1:5.7.2-49.el7_9.4                                                                                @updates
+net-snmp-utils.x86_64  
+
+Instalar snmp
+
+
+yum install net-snmp net-snmp-agent-libs net-snmp-devel net-snmp-libs net-snmp-perl net-snmp-utils -y
+
+copiar la config de otro servidor
+
+/etc/snmp/snmpd.conf
+
+y inicie el servicio con
+systemctl start snmpd
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+

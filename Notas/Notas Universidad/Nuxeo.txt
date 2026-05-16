@@ -1,0 +1,271 @@
+#--------------------------------------
+#INSTALAR NUXEO
+#--------------------------------------
+#Instalacion oficial de nuxeo:
+
+#1- Instalar java
+
+#sudo apt install openjdk-11-jdk
+
+#2- Descargar nuxeo-server-tomcat-2021.1.zip en /opt
+#https://connect.nuxeo.com/nuxeo/site/connect/distributions
+
+#3- sudo swapoff -a
+#sysctl vm.swappiness=1
+
+#4- unzip nuxeo-server-tomcat-2021.1.zip 
+
+#5- cd /nuxeo-server-tomcat-2021.1/bin
+#./nuxeoctl register
+
+Password = Token Nuxeo 
+
+#6- ./nuxeoctl start
+
+--------------------------------------
+Integracion con Arai:
+--------------------------------------
+
+https://documentacion.siu.edu.ar/documentos/docs/nuxeo/
+https://documentacion.siu.edu.ar/documentos/docs/nuxeo-siutypes/
+
+1- Instalar java
+
+sudo apt install openjdk-11-jdk
+
+2- groupadd tomcat
+
+3- useradd -s /bin/false -g tomcat -d /opt/tomcat tomcat
+
+4- 
+curl -O https://apache.zero.com.ar/tomcat/tomcat-9/v9.0.64/bin/apache-tomcat-9.0.64.tar.gz             (Verificar que la url sea correcta con la version)
+tar -xvzf apache-tomcat-9.0.64.tar.gz    -C /opt/tomcat --strip-components=1
+cd /opt/tomcat
+chgrp -R tomcat /opt/tomcat
+chmod -R g+r conf
+chmod g+x conf
+chown -R tomcat webapps/ work/ temp/ logs/
+
+5- update-java-alternatives -l
+
+6- touch /etc/systemd/system/tomcat.service
+
+7- nano /etc/systemd/system/tomcat.service
+
+
+8-  Escribir:
+
+[Unit]
+Description=Apache Tomcat Web Application Container
+After=network.target
+
+[Service]
+Type=forking
+Environment=JAVA_HOME=/usr/lib/jvm/java-1.11.0-openjdk-amd64
+Environment=CATALINA_PID=/opt/tomcat/temp/tomcat.pid
+Environment=CATALINA_HOME=/opt/tomcat
+Environment=CATALINA_BASE=/opt/tomcat
+Environment='CATALINA_OPTS=-Xms512M -Xmx1024M -server -XX:+UseParallelGC'
+Environment='JAVA_OPTS=-Djava.awt.headless=true -Djava.security.egd=file:/dev/./urandom'
+ExecStart=/opt/tomcat/bin/startup.sh
+ExecStop=/opt/tomcat/bin/shutdown.sh
+User=tomcat
+Group=tomcat
+UMask=0007
+RestartSec=10
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+
+9- 
+systemctl daemon-reload
+systemctl start tomcat
+systemctl status tomcat
+# (ahi debe dar todo OK)
+systemctl enable tomcat
+
+10-
+nano /opt/tomcat/conf/tomcat-users.xml
+# agregamos lo siguiente justo sobre </tomcat-users>:
+
+<role rolename="admin-gui,manager-gui"/> 
+<user username="admin" password="password" roles="admin-gui,manager-gui"/>
+</tomcat-users>
+
+11- Modificar los siguientes archivos 
+nano /opt/tomcat/webapps/manager/META-INF/context.xml 
+nano /opt/tomcat/webapps/host-manager/META-INF/context.xml
+AGREGAR: "<!--" delante de "<Valve class" y "-->" detras del ">" y cambiar allow = ".."
+
+<Context antiResourceLocking = "false" privileged = "true">
+   <!--<Valve className = "org.apache.catalina.valves.RemoteAddrValve" 
+         allow = "127 \. \ D + \. \ D + \. \ D + |: : 1 | 0: 0: 0: 0: 0: 0: 0: 1 "/>--> 
+</Context>
+
+12- systemctl restart tomcat
+
+13- Instalar Postgresql
+
+wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo apt-key add -
+
+sh -c 'echo "deb http://apt.postgresql.org/pub/repos/apt/ buster-pgdg main" >> /etc/apt/sources.list.d/pgdg.list'
+
+
+
+apt-get install -f
+apt-get clean && sudo apt-get update
+apt-get upgrade
+apt-get dist-upgrade
+apt-get purge zlib1g-dev
+apt-get dist-upgrade
+apt-get autoremove
+
+14- 
+
+apt update
+apt install postgresql-11 -y
+systemctl status postgresql
+
+apt update
+sudo apt install postgresql postgresql-contrib
+sudo systemctl start postgresql.service
+sudo systemctl enable postgresql.service
+sudo systemctl status postgresql.service
+sudo su - postgres
+psql --version
+
+15- nano /etc/postgresql/12/main/postgresql.conf
+Buscar: /listen_addresses y cambiamos localhost por *
+
+16- Modificar 
+nano /opt/nuxeo-server-tomcat-2021.1/bin/nuxeo.conf
+
+nuxeo.templates=postgresql # ver templates en /srv/nuxeo/templates para otros motores
+nuxeo.db.host=<HOST>
+nuxeo.db.port=<PORT>
+nuxeo.db.name=<NUXEO_DB_NAME>
+nuxeo.db.user=<NUXEO_DB_USER>
+nuxeo.db.password=<NUXEO_DB_PASSWORD>
+
+
+16.5- 
+ALTER USER postgres WITH PASSWORD '123';
+create database nuxeo;
+
+
+17- Descargar nuxeo-server-10.10-tomcat.zip
+https://connect.nuxeo.com/nuxeo/site/connect/distributions
+
+mkdir /srv/nuxeo
+cd /tmp
+unzip nuxeo-server-10.10-tomcat.zip
+cp -R nuxeo-server-10.10-tomcat/* /srv/nuxeo/
+cd /srv/nuxeo/bin/
+chmod +x *.sh *ctl
+
+18- Agregar en /srv/nuxeo/bin/nuxeo.conf
+
+nuxeo.server.http.port=8180
+nuxeo.server.ajp.port=8109
+nuxeo.server.tomcat_admin.port=8150
+
+19- Descargar https://documentacion.siu.edu.ar/documentos/docs/assets/siu-types-1.2.0.jar
+
+20- cp siu-types-1.2.0.jar /srv/nuxeo/nxserver/bundles/  &&  cp siu-types-1.2.0.jar /opt/nuxeo-server-tomcat-2021/nxserver/bundles/
+
+21- Agregar la siugiente linea 
+nano /etc/postgresql/13/main/pg_hba.conf
+host    all             all             xxx.xx.xx.xx/32          md5
+
+22- cd /srv/nuxeo/bin/
+
+./nuxeoctl restart
+fuser -n tcp 8080
+kill -9 80219
+./nuxeoctl restart
+
+23- Entrar a http://xxx.xx.xx.xx:8180/nuxeo/ y comenzar a configurar
+
+24- Si la configuracion no funciona, es decir, no nos deja entrar con el usuario Administrator/Administrator. Copiar el archivo nuxeo.conf desde otro srv y reiniciar el servicio
+En el Nuxeo original de produccion, el archivo nuxeo.conf no esta asignado al LDAP xxx.xx.xxx.xx
+
+Probar firmar 
+
+>>>Para reiniciar la configuracion de nuxeo, realizar todos los pasos desde el 17
+
+-----------------------------------
+Arai Documentos
+-----------------------------------
+
+https://documentacion.siu.edu.ar/documentos/docs/instalacion-postgres/
+
+Borrar la base de datos de arai documentos, crearla de nuevo, y ejecutar 
+psql -h xxx.xx.xxx.xx -p 5432 -U postgres -d _documentos2 -f modelo.sql
+
+Buscar el archivo modelo.sql en --archivos prod--
+
+Esto va a cargar la base arai_documentos2 con sus respectivas tablas 
+
+-----------------------------------
+
+Si el servicio de Nuxeo no funciona, revisar los archivos docs.env y sudocu-api-server-secret.json.
+Su conexion a la base, y password respectivamente
+-----------------------------------
+
+Herramienta Nuxeo produccion - universidad :
+
+http://xxx.xx.xxx.xx:8081/nuxeo/atom/cmis/
+
+Administrator
+
+-----------------------------------
+
+Error en el nuxeo:
+
+Nuxeo almacena todos sus documentos en la carpeta /nuxeo/data/binaries/data/
+Nuxeo porduccion tenia un link simbolico a otro disco, este se rompio y no se pudieron recuperar los archivos
+No hacer links simbolicos en el nuxeo
+-----------------------------------
+
+Migrar Nuxeo:
+
+Copiar la base de datos a migrar, borrar la base de datos local y restaurarla en el nuxeo nuevo
+Copiar la carpeta data y reemplazarla en el nuxeo nuevo
+
+------------------
+Broken packages
+------------------
+
+https://askubuntu.com/questions/140246/how-do-i-resolve-unmet-dependencies-after-adding-a-ppa
+
+nano /etc/apt/sources.list.d/*
+
+Borrar todo
+
+-----------------------------------
+
+Inicializar nuxeo nuevamente:
+
+cd /srv/nuxeo/bin/
+./nuxeoctl restart
+
+-----------------------------------
+Instalacion de nuevo servidor
+-----------------------------------
+
+Permitir acceso usuario root : 
+	vi /etc/ssh/sshd_config
+		PermitRootLogin without-password --> PermitRootLogin yes
+	cambiamos passwd: 	sudo -i  -->  passwd root (enter e ingresamos la nueva password)
+	reiniciamos servicio ssh: service ssh restart
+
+Calculadora subnet:
+http://jodies.de/ipcalc
+
+ 
+Editar IP ubuntu 20
+/etc/netplan/00-installer-config.yaml
+luego: netplan apply
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

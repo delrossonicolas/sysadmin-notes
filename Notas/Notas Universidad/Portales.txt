@@ -1,0 +1,369 @@
+-----------------------------
+Crear un nuegvo servidor Portales
+-----------------------------
+
+Instalacion
+
+Red Interna --> 192 / 10
+
+2GB Boot 4BGSwap
+130GB Aprox para un portalesX (Instalar si o si en una red publica)
+
+-----------------------------
+Lado del servidor
+-----------------------------
+
+Siempre comparar con otro portales (Portales 8)
+
+1- LOGIN root
+
+2- Agregamos usuario universidadingreso 
+	sudo useradd  universidadingreso
+	passwd xxxxxx
+3- vi /etc/hosts  
+	127.0.0.1 localhost
+	127.0.1.1 portalesx.universidad.edu.ar portalesX
+
+	# The following lines are desirable for IPv6 capable hosts
+	::1     ip6-localhost ip6-loopback
+	fe00::0 ip6-localnet
+	ff00::0 ip6-mcastprefix
+	ff02::1 ip6-allnodes
+	ff02::2 ip6-allrouters
+
+4-  (asi toma los cambios del hostname)
+
+5- hostname  -->  verificamos que la salida sea 127.0.0.1portales8.universidad.edu.arportales8
+
+6- apt update && apt upgrade
+
+7- 
+wget -O - https://get.ispconfig.org | sh -s -- --no-mail --no-dns --use-php=system  		
+apt-cache search php
+apt-cache show php-mbstring
+add-apt-repository ppa:ondrej/php
+apt-cache search php-8.1
+apt-cache search php8.1
+apt-get install php8.1 php8.1-cli php8.1-cgi php8.1-fpm php8.1-gd php8.1-mysql php8.1-imap php8.1-curl php8.1-intl php8.1-pspell php8.1-sqlite3 php8.1-tidy php8.1-xsl php8.1-zip php8.1-mbstring php8.1-soap php8.1-opcache libonig5 php8.1-common php8.1-readline php8.1-xml
+
+8- Verificar el archivo vi /etc/resolv.conf
+
+9- Ingresamos en la web https://IP.DEL.SERVIDOR:8080  -->  USER : ADMIN  PASS :  LASALIDAANTERIOR
+
+10- ingresamos a system  -->  firewall -->  add firewall record y adjuntamos solo los siguientes puertos
+	xxx xx xxx xx xxx xx
+	
+11- Ir a System > Aditional PHP versions y agregar php 8.1 y 7.4 (Tomar como referencia portales 10  https://xxxx.xxxx.xxx:8080)
+
+12- Pedir IP publica con las mismas reglas de firewall que portales 10
+
+Si no se puede acceder, realizar un tunnel desde putty
+
+-----------------------------------
+Dar de alta una pagina de revista ojs - IspConfig
+-----------------------------------
+
+El servidor Portalesx esta lleno, por lo que ahora se ultiliza Portalesx2
+
+1- Ingresar a la siguiente direccion https://xxx.xxxx.xxxx  --> IspConfig keepas: Portales4
+
+2- Ingresar en Sites > Web Domain 
+
+3- Seleccionar servidor (Portales4) y cliente correspondiente (Facultad)
+Tildar SSL
+Tildar PHP 74
+
+4- En Redirect seleccionar R=301,L (Permanent Redirect + Last Rule) 
+Tildar Rewrite HTTP to HTTPS
+
+5- En SSL cargar certificados
+Copiarlos de una pagina ejemplo test.ojs.universidad.edu.ar
+
+6- dar de alta un usuario de base de datos
+
+7- dar de alta la base de datos
+
+8- dar de alta el FTP
+
+9- Ingresar a la direccion https://testojs.universidad.edu.ar y configurar los parametros
+
+10- Conectarse a xxx.xx.xxx.xx
+Entrar a /var/www 
+Con ll vemos a donde estan redireccionadas las carpetas
+
+11- Abrir FileZilla y borrar todo el contenido de la carpeta /var/www/testojs.universidad.edu.ar/web que se creo para la nueva pagina del ojs 
+
+12- Descargar https://pkp.sfu.ca/ojs/download/ojs-3.3.0-8.tar.gz en nuestro escritorio
+
+13- Con el FileZilla, copiar el contenido del .rar descargado (Todo lo que esta dentro de la carpeta ojs-3.3.0.8) en la carpeta VACIA del servidor /var/www/testojs.universidad.edu.ar/web 
+
+14- Volver a ingresar a https://testojs.universidad.edu.ar
+
+-----------------------------------
+Migrar Sitio a portales 6
+-----------------------------------
+
+Portales 6:
+
+URL: comunicarciencia.universidad.edu.ar
+
+Pasos a seguir:
+- Completar la planilla de sitios mantenidos en GDOCS - https://docs.google.com/document/d/1JuhuEunK9Q2F5IuSGkJu76oT7hawyNsSNBuxy2RmUb4/edit
+- Ingresar a Portales 6/7/8 según corresponda.
+- Generar un nuevo cliente.
+  -- Company name: Sitio comunicarciencia
+  -- Title: Mr/Ms
+  -- Contact name*: NOMBRE Y APELLIDO DEL CONTACTO FUNCIONAL. EN CASO DE SER INTERNO EL NOMBRE DE LA PERSONA QUE REALIZA EL ALTA.
+  -- Customer No.: SEGUIR ORDEN NUMÉRICO. Ej: C4 / C5 / C6
+  -- Username*: usr_cciencia (usr_ es obligatorio)
+  -- Password: GENERAR DE FORMA ALEATORIA
+  -- Language: AR
+  -- Country: AR
+  -- Email: email de la persona que realiza el alta (no del solicitante) usuario.apell@universidad.edu.ar
+
+- Generar un nuevo sitio:
+Pestaña: Domain
+  -- Client: SELECCIONAR EL GENERADO DENTRO DEL PUNTO ANTERIOR
+  -- Domain: DOMINIO DEL SITIO SIN WWW (SI SE UTILIZA SE ROMPE EL SSL)
+  -- Harddisk Quota: 2048
+  -- Auto-Subdomain: NONE
+  -- Ssl: TILDAR
+  -- PHP: PHP-FPM
+  -- Version PHP: 7.4 MINIMO
+
+Pestaña Redirect:
+  -- Seleccionar R=301,L (Permanent Redirect + Last Rule) 
+  -- Rewrite HTTP to HTTPS: TILDAR
+  
+Pestaña Statistics:
+  -- Webstatistics program: NONE
+
+Pestaña Options:
+  -- Use Socket For PHP-FPM: TILDAR
+  -- PHP-FPM Process Manager: DYNAMIC
+
+Pestaña SSL:
+  -- Country: ARGENTINA
+  -- SSL Domain: SELECCIONAR SITIO QUE SE ESTA DANDO DE ALTA
+  -- SSL Key: PEGAR KEY DEL CERTIFICADO
+  -- SSL Certificate: PEGAR CERTIFICADO
+  -- SSL Bundle: PEGAR CERTIFICADO INTERMEDIO
+  -- SSL Action: SAVE CERTIFICATE
+
+- Alta cuenta FTP
+Ingresar a Sites ==> FTP-Accounts
+  -- Agregar nuevo usuario
+  -- Website: SELECCIONAR SITIO QUE SE ESTA DANDO DE ALTA
+  -- Username: _ftp (solo agregar)
+  -- Password: AUTOGENERAR
+
+- Subir los archivos:
+ --Ingresar con un cliente FTP (Total Commander / Filezilla)
+ --Eliminar el conenido de la carpeta web en var/www/comunicarciencia (todo)
+ --Copiar el contenido de la carpeta del portales viejo (var/www/comunicarcienci) al nuevo 
+ --
+
+- Remitir un mail a soporte@universidad.edu.ar solicitando el cambio de apuntamiento de DNS. 
+En este caso el dominio comunicarciencia.universidad.edu.ar debe ser apuntado a la IP xxx.xxx.xxxx
+
+-- "Solicitamos el cambio de direccion de DNS
+En este caso comunicarciencia.universidad.edu.ar apunte a la IP xxx.xx.xxx.xx
+comunicarciencia.universidad.edu.ar -->  xxx.xx.xxx.xx
+Por favor eliminar el registro www.comunicarciencia.universidad.edu.ar; el dominio solo debe existir sin el "www" (comunicarciencia.universidad.edu.ar)"
+
+1- gb=20 swap=2 cpu=4 ram=8/16 /boot=1G red1:92 ping a cualquier ip libre
+
+2- gb=65 swap=2 cpu=4 ram=8/16 /boot=1G red:192 ping a cualquier ip libre
+
+3- gb=65 swap=2 cpu=4 ram=8/16 /boot=1G red:192 ping a cualquier ip libre
+
+usuario: universidadingreso
+ftp: soporte TLS habilitar 
+Buscar una guia en howtoforge de como instalar un servidor ispconfig
+pedir las mismas reglas de firewall de portales3 - Por ahora no se va a poner en la inspeccion de paquete
+
+----------------------------------
+
+Recordar que el SFTP y el FTP usan creedenciales distintas
+
+SFTP: Usa universidadingreso, las creedencilaes del servidor (Filezilla)
+
+FTP: Usa test_test, configurarla en el ISPconfig (Totalcommander)
+
+FTP (Totalcommander) =/= SFTP (Filezilla)
+
+Si se quiere acceder desde el FileZilla
+Edicion > Opciones > FTP > Modo de transferencia: Tildar Activo
+
+----------------------------------
+
+Si una pagina de algun servidor de portales no funciona (o todas de un mismo portales), realizar:
+systemctl restart apache2.service
+
+
+Probar listar sitios en /var/www y acceder a algun sitio listado. Esperar unos minutos porque se vuelve a caer
+
+----------------------------------
+
+Sitio de Portales con 'Virus'
+
+ps -ef | grep client2 (lista procesos web)
+ps -ef | grep web4 (lista procesos web)
+
+Se hace una copia de los archivos "maliciosos" del sitio (carpeta dominoqq, tanggal-lhr.php) 
+Se borran los archivos "maliciosos" designados por el usuario (carpeta dominoqq, tanggal-lhr.php)
+La copia se envia a soporte@universidad.edu.ar 
+
+El usuario pide permisos para unas determinadas carpetas. Se le asigna con
+chmod 555 Carpeta/
+
+El usuario puede acceder y el sitio vuelve a la nromalidad
+
+Se restauro un backup de una semana anterior del sitio
+
+Realizar backup del sitio IspConfig
+Se realizo un backup de la carpeta www/client2/web4 y de la base de datos SQL
+
+
+Se dejo el backup en el servidor funcional en la carpeta web y se envio el siguiente link para descargar
+https://facu.universidad.edu.ar/backup_facultad_03_08_2022.tar.gz
+fveter
+
+----------------------------------
+
+Nuevo portal:
+
+https://www.hestiacp.com/
+
+----------------------------------
+
+Migrar un sitio (en este caso de Ispconfig a Hestia)
+
+1- Crear un usuario, sitio, usuarioFTP y database en hestia 
+ej: usr_cei, usr_cei_ftp, usr_cei_db
+
+2- Copiar la carpeta web del sitio del servidor ispconfig a la carpeta /tmp
+
+3- Comprimirla y copiarla al servidor hestia  
+tar -czf archivo.tar.gz Archivo1 Archivo2 
+
+4- En el servidor hestia, borrar el contenido de la carpeta sitio/public_html creada en el paso 1  
+chmod ugo+w .  
+chattr -i -a .  
+rm -rf carpetas
+
+5- Descomprimirla en sitio/public_html, esta carpeta va a ser creada en el paso 1  
+tar -zxvf achivo.tar.gz -C /home/ExtractedFiles/
+
+6- Cambiar los permisos de la carpeta copiada (wwwdata)  por los permisos que fueron asignados por el hestia  
+chmod 777 -r web
+
+7- Hacer un backup de la base del sitio en el servidor del ISPConfig. Hacerlo en la carpeta tmp  
+mysql -u root -p  
+show databases;  
+mysqldump -u root -p c2_fveter > c2_fveter.sql
+
+8- Cargar la base en el hestia, esta se creo en el paso 1   
+mysql -u root -p  
+show databases;  
+use nombredeladb  
+source bd_namebackup
+
+9- Probar el usuario FTP creado en el paso 1 y pasarlo a los administradores del portal
+
+----------------------------------
+
+Redireccion:
+
+1- Dar de alta un sitio en un portal ecu.universidad.edu.ar (ej portales 10)
+
+2- Perdir la redireccion de el dominio ecu.universidad.edu.ar(a redirigir)  hacia el portal xxx.xx.xxx.xx
+
+3- Verificar que los puertos 80 y 443 esten habilitados (en soporte y firewall)
+
+4- Crear un archivo llamdo index.php con el siguiente contenido (redirigido)
+
+<?php
+header("Location: https://universidad.edu.ar/ecu");
+die();
+?>
+
+5- Verificar la configuracion en 
+
+/etc/apache2/sites-enabled
+/etc/apache2/sites-avaliable
+
+Verificar puertos con ufw status 
+
+----------------------------------
+Actualizar version de PHP para un sitio
+----------------------------------
+
+A partir de la version de php 7.4, las llaves deben ser reemplazadas por corchetes
+
+var_dump($arr{1});
+var_dump($arr[1]);
+
+----------------------------------
+
+Un sistema arroja los siguientes errores:
+
+Deprecated: Array and string offset access syntax with curly braces is deprecated in /var/www/clients/client11/web11/web/fpdf.php on line 432
+Deprecated: Array and string offset access syntax with curly braces is deprecated in /var/www/clients/client11/web11/web/fpdf.php on line 740
+Deprecated: Array and string offset access syntax with curly braces is deprecated in /var/www/clients/client11/web11/web/fpdf.php on line 830
+Deprecated: Array and string offset access syntax with curly braces is deprecated in /var/www/clients/client11/web11/web/fpdf.php on line 1190
+Deprecated: Array and string offset access syntax with curly braces is deprecated in /var/www/clients/client11/web11/web/fpdf.php on line 1196
+Deprecated: Array and string offset access syntax with curly braces is deprecated in /var/www/clients/client11/web11/web/fpdf.php on line 1455
+
+Deprecated: Methods with the same name as their class will not be constructors in a future version of PHP; FPDF has a deprecated constructor in /var/www/clients/client11/web11/web/fpdf.php on line 16
+
+Fatal error: Uncaught Error: Call to undefined function mysql_error() in /var/www/clients/client11/web11/web/informe_pdf.php:154 Stack trace: #0 {main} thrown in /var/www/clients/client11/web11/web/informe_pdf.php on line 154
+
+Hay que actualizar la libreria que utilizar, en este caso fpdf181 a fpdf184. Borrar la carpeta y reemplazarla. Descargarla de http://www.fpdf.org/
+No hace falta reiniciar nada, actualizar la pagina 
+
+----------------------------------
+
+Despues de añadirle espacio al disco a portales8 sucedio este incoveniente:
+
+GERMAN BUENO dice que Antonio (207) reporta lentitud de acceso a Vincular empleo y corrobore que todos los sitios de Portales 8 tienen ese problema
+
+Se actualiza el sistema operatuvo, se reinicia y Antonio informa que todo funciona correctamente
+
+----------------------------------
+
+Certificados Lets Encrypt:
+
+Para generar certificados con Lets Encrypt, hau que dirigirlos a la opcion SLL en el sitio, acivar los certificados lets encrypt
+y generarlos en otra pestaña con la opcion en el menu desplegable 'generate certificate', puede tardar unos segundos
+
+Para que lets encrypt funcione, se necesita tener el puero 80 y 443 abierto en el firewall
+Esto lo verificamos con el comando
+
+ufw status 
+
+Y verificamos que este abierto en la parte de system>Firewalls en ispconfig
+
+Si no vemos los certificados, no hay problema, ya que lo que tenemos que verificar es el mensaje
+"You have Let's Encrypt certificates enabled for this website. 
+Please be aware that all options on this page apply to non-Let's Encrypt certificates only. 
+Remember to uncheck Let's Encrypt on the main tab if you want to switch to a different certificate."
+
+----------------------------------
+
+Ver logs de un sitio:
+cd /var/www/esociales.universidad.edu.ar/log 
+tail -f error.log
+
+----------------------------------
+
+Unknown: Failed opening required '/var/www/clients/client8/web7/web/wordfence-waf.php'
+Borrar el archivo wordfence-waf.php
+
+----------------------------------
+
+
+Abrir puertos para portales nuevos
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+

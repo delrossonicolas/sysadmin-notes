@@ -1,0 +1,959 @@
+-----------------------------------------------------
+INSTALAR DOCKER SWARM
+-----------------------------------------------------
+
+https://gabrieltanner.org/blog/docker-swarm
+
+1- sudo apt-get update
+
+2- sudo apt-get install  apt-transport-https  ca-certificates   curl  gnupg-agent software-properties-common
+
+3- curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+
+4- sudo apt-key fingerprint 0EBFCD88
+
+5- sudo add-apt-repository   "deb [arch=amd64] https://download.docker.com/linux/ubuntu    $(lsb_release -cs)   stable"
+
+6- sudo apt-get update
+
+7- sudo apt-get install docker-ce docker-ce-cli containerd.io
+
+8- sudo service docker status
+
+9- docker run hello-world  
+
+/* Este es el mensaje que esperamos para la correcta instalación
+Hello from Docker!
+This message shows that your installation appears to be working correctly.
+*/
+
+-----------------------------------------------------
+Comandos Docker
+-----------------------------------------------------
+
+Swarm: Es un uusuario servicio 
+Stack: Multiples swarms / servicios - Regeneran los containers
+
+docker restart/pause/stop/start NUMEROID (Ejecutar desde un nodo administrador para manejar el enjambres)
+
+docker secret ls (Ejecutar desde un nodo administrador para enumerar las contraseñas del enjambre)
+docker secret create (Crear una contraseña)
+docker secret rm usuarios_db_pass (Borrar secretos)
+
+docker config ls (Ejecutar desde un nodo administrador para enumerar las configuraciones del enjambre)
+docker config rm NUMEROID (Ejecutar desde un nodo administrador para eliminar las configuraciones del ejnambre)
+
+docker stack ls (Lista los stacks - Clusters - Los stacks son los que constantemente generar y regeneran los containers una vez eliminados)
+docker stack deploy archivo.yml NOMBRESTACK (Despliga un stack)
+docker stack rm NOMBRESTACK
+
+ej: docker stack deploy -c servicios/traefik.yml traefik (Despliega el stack de traefik)
+
+Ver el estado y consumo de recursos de cada docker
+docker stats (Estado de docker swarm)
+docker inspect afe95yyi9luy (ID)
+
+docker service ps crear_db_docs_crear-base --no-trunc (Estado del servicio)
+
+docker image ls (lista las imagenes)
+docker image rm NOMBREIMAGEN
+
+docker cp img_meta.png huarpe_webapp.1.xipsjnpjw8qmde8wcudl5hwjg:/usr/local/app/web/img/logos/ (Copiar algo al Docker)
+docker cp usuarios_idp.1.tc433eewm27ykp7gaqqd62r1r:/usr/local/app/idp/simplesamlphp-module-arai/www/assets/img/ /home/eei/logoArai/ (Copiar algo desde el Docker)
+
+docker exec -it usuarios_api.1.pjdsdoptyae8fw5iw5rxfigk2 /bin/bash (Ingresar al contenedor)
+docker exec -it sudocu_api-worker.1.qfk4xenk9znw91q5akof8oac8 sh (Ingresar al contenedor)
+find . -iname *.png (Encontrar algo en el Docker)
+
+docker system prune (Limpia todo lo que quedo colgado, se puede tirar por segmentos ej. docker image prune)
+docker system prune -a (Limpia todo lo que quedo colgado + lo que no esta en uso )
+
+docker exec sudocu_pdf.1.pqub4us66e8rq6hi3ujx31o29 date (hora y fecha del contenedor)
+
+dockerd --config-file /etc/docker/daemon.json
+
+En un archivo de configuracion ej. usuarios.yml se puede cambiar los parametros reservations y resources, por ejemplo cuando un usuario indique que el sistema esta lento, reservations es la base 
+
+      resources:
+        limits:
+          cpus: '0.25'
+          memory: 128M
+        reservations:
+          cpus: '0.1'
+          memory: 25M
+
+Reiniciar:
+
+docker stack rm usuarios
+docker stack deploy usuarios.yml usuarios 
+
+docker service ps usuarios_idp --no-trunc (Da detalles sobre un contenedor en particular, funciona como un log mas extenso)
+
+-----------------------------------------------------
+
+Actualizar docker engine version 
+
+1- https://itslinuxfoss.com/fix-package-docker-ce-no-installation-candidate-error/
+2- https://stackoverflow.com/questions/36934675/ubuntu-and-updating-docker
+
+-----------------------------------------------------
+Buscar logs especificos
+
+docker ps --format "table {{.ID}}\t{{.Names}}\t{{.Status}}\t{{.RunningFor}}"
+
+docker logs webv2.es  | grep 5/Nov/
+
+docker service logs -n 1500 sudocu_api-server | grep 31521562
+
+docker service logs -f --tail 8000 usuarios_idm | grep error
+
+docker logs tr-backend-smtpdlog-2  --since "2025-01-22T11:30:00" --until "2025-01-22T13:48:00"
+-----------------------------------------------------
+Extraer un archivo del contenedor
+
+docker cp <container>:<src-path> <local-dest-path> 
+docker cp sudocu_api-server.1.qcozi6hnrzid7148t8ql4bi78:/app/src/modules/gestion/seguimientos.js seguimientos.js
+
+
+Enviar un archivo al contenedor
+
+docker cp <src-path> <container>:<dest-path> 
+docker cp seguimientos.js  sudocu_api-server.1.qcozi6hnrzid7148t8ql4bi78:/app/src/modules/gestion/seguimientos.js 
+
+-----------------------------------------------
+Docker Swarm - Añadir nodos al enjambre
+-----------------------------------------------
+
+1- Instalamos docker en la maquina Trabajador/worker 
+
+2- En maquina Manager :
+docker swarm init 
+docker swarm join-token worker
+
+nos dara una salida como la siguiente  
+(# docker swarm join --token SWMTKN-1-3TOKEN-xry xxxx.xxxx.xxx:2377 )
+
+3- Desde la maquina Worker:
+docker swarm join --token SWMTKN-1-3TOKEN-ry xxxx.xxxx.xxx:2377
+
+4- (Opcional: Para ver el token del manager ) 
+docker swarm join-token manager
+
+5- (Opcional: Para ver los nodos activos desde la maquina manager)
+docker node ls
+
+6- Cambiar los roles de los nodos:
+docker node update --role manager docker-node
+
+7- Dejar el enjambre
+
+docker swarm leave (dejar el enjambre desde el nodo trabajador)
+
+docker node rm worker1 (remover el nodo desde el manager)
+
+8- Crear / replicar un servicio 
+docker service create --replicas 4 --name hellogoogle alpine ping google.com
+
+(Replicas: Especifica las instancias
+Name: Define el nombre)
+
+--------------------------------------------
+Ver logs en docker:
+
+docker service logs -f --tail 100 sudocu_api-server
+docker service logs -f --tail 100 traefik_reverse-proxy
+
+docker service ps usr-cmd_idm --no-trunc
+
+--------------------------------------------
+Docker Compose
+--------------------------------------------
+
+1- apt install docker-compose
+
+Ejemplo de instalacion de grafana con docker-compose:
+ 
+2- Descargar los archivos yml (docker-compose.yml / prometheus.yml)
+     git clone https://github.com/caosbinario/docker
+
+3-  docker-compose.yml
+
+     version: "3.7"
+
+     volumes:
+       grafana-data:
+       prometheus-data:
+
+     services:
+       grafana:
+         image: grafana/grafana:8.0.6
+         container_name: grafana
+         restart: unless-stopped
+         volumes:
+         - grafana-data:/var/lib/grafana
+         ports:
+         - 3000:3000
+     
+       prometheus:
+         image: prom/prometheus:v2.28.1
+        container_name: prometheus
+         restart: unless-stopped
+         volumes:
+         - ./prometheus.yml:/etc/prometheus/prometheus.yml
+         - prometheus-data:/prometheus
+         ports:
+         - 9090:9090
+        command:
+         - '--config.file=/etc/prometheus/prometheus.yml'
+         - '--storage.tsdb.path=/prometheus'
+         - '--storage.tsdb.retention.time=1y'
+         - '--web.enable-lifecycle'
+
+4- En el mismo directorio del docker-compose.yml: docker-compose pull (descargar las imagenes)
+
+5- En el mismo directorio del docker-compose.yml: docker-compose up -d (deploy)
+
+6- Escalar / Scale: 
+docker-compose scale NOMBRE_DEL_SERVICIO=NUMERO_DE_INSTANCIAS
+
+7- Replicar en un .yml
+
+Ejemplo del apartado deploy en un yml con 3 replicas
+
+    deploy:
+      mode: replicated
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1024M
+        reservations:
+          cpus: '0.1'
+          memory: 25M
+      replicas: 3
+      restart_policy:
+        condition: any
+        delay: 10s
+        max_attempts: 4
+        window: 120s
+		
+----------------------------		
+
+    deploy:
+      mode: replicated
+      replicas: 2
+      placement:
+        constraints:
+          - node.role == worker
+		  
+----------------------------	
+		
+O podemos escribir entre 'deploy' y 'resources' las siguientes lineas 
+
+      mode: replicated
+      placement:
+        constraints: [node.role == manager]
+
+
+Ejecutar docker compose: docker-compose up -d
+
+-----------------------------------
+
+YAML Verifier: http://www.yamllint.com/
+
+IMPORTANTE: El uusuario contenedor que no se replica es el MEMCACHED
+
+--------------------------------------------
+Asignar mas recursos a un docker en el .yml 
+--------------------------------------------
+
+nano sudocu/sudocu.yml
+
+
+image: ungs/sudocu-gestion:1.1.5 
+          cpus: '0.50'   
+          memory: 512M --> 768M --> 1024M ...
+
+
+image: ungs/sudocu-api-server:1.1.9
+      resources:
+        limits:
+          cpus: '0.50' --> '1'
+          memory: 1024M --> 1536M -->2048M
+        reservations:
+          cpus: '0.2'
+          memory: 256M
+
+
+image: browserless/chrome:1.29-chrome-stable
+        limits:
+          cpus: '0.50' --> 1
+          memory: 2048M  --> 3072M
+        
+
+-----------------------------------
+Ajustar hora de un contenedor a traves de .yml
+-----------------------------------
+
+    volumes:
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro	
+	  
+----------------------------------------------------------
+INSTALAR TRAEFIK
+----------------------------------------------------------
+
+1- Pasar certificados a /opt/certificados/2020-2022
+   Pasar archivos .yml a /opt/deploy/expedientes/prod/servicios
+
+2- Crear las redes desde docker 
+
+docker network create --driver=overlay traefik-public
+docker network create --driver=overlay red-siu
+
+3- Solicitar el alta del dominio a telematica soporte@unt.edu.ar , en este caso: test-univ.universidad.edu.ar, para luego usar el siguiente comando
+
+export DOMAIN_NAME_URL=test-univ.universidad.edu.ar
+sed -i "s/uunn\.local/${DOMAIN_NAME_URL}/g" \
+    traefik.le.yml \
+    traefik.yml
+ 
+4- Cargar los certificados
+
+Tanto Traefik como lets encrypt necesitan un certificado intermedio (Intermediate.crt), que se añade debajo del certificado que tienen originalmente (crt_int.crt).
+Al archivo crt_int.crt copiarle debajo el contenido del archivo Intermediate.crt.
+
+Buscar en Archivos_prod
+-- crt_int.crt  -- 
+
+    Eliminar la configuracion de los certificados  docker config rm traefik... (Si tenia cargada una config previa)
+	Eliminar el secret  docker secret rm traefik... (Si tenia cargado un secret previo)
+    Eliminar el stack (Traefik)
+	Volver a ejecutar 
+	docker config create traefik_tls_cert servicios/certs/crt_int.crt
+	docker secret create traefik_tls_key servicios/certs/wildcard_universidad_edu_ar.key
+
+5- Cambiar el archivo hosts, en windows 
+ 
+C:\Windows\System32\drivers\etc\hosts 
+
+Abrir el archivo como administrador y agregar la siguiente línea:
+
+IPDELSERVIDOR traefik.test-univ.universidad.edu.ar
+
+5- Generar una contraseña
+
+openssl passwd -apr1 contraseña
+
+(Importante)
+Cada vez realizada una modificacion en el .yml borrar/parar el contenedor y las imagenes correspondientes. Una vez finalizada la edicion, volver a desplegar
+Verificar el stack si no podemos eliminar los servicios eliminar el stack
+
+
+6- Copiar el resultado  y pegarlo en el archivo traefik.yml
+
+Buscar en Archivos_prod
+-- traefik.yml  -- 
+
+Pegar y reemplazar la siguiente linea. Tambien, insertar un signo $ por cada signo $
+- "traefik.http.middlewares.auth.basicauth.users=traefik:$$apr1$$zbQzPC.L$$N7G5wzrESCkNH9qtHQX4V0"
+
+Por ejemplo, si el pass generado fue $apr1$PqXl.pwR$wByD8SWOmiLRuTu9mKUCS/ en el label cargar $$apr1$$PqXl.pwR$$wByD8SWOmiLRuTu9mKUCS/
+
+7- Seguir editando el archivo traefik.yml y cambiar el valor de 
+
+api.dashboard=false 
+
+---------------
+A
+---------------
+
+api.dashboard=true
+
+
+8- Deployamos el traefik
+
+docker stack deploy -c servicios/traefik.yml traefik
+
+9- Tanto Traefik como lets encrypt necesitan un certificado intermedio (Intermediate.crt), que se añade debajo del certificado que tienen originalmente (crt_int.crt).
+Al archivo crt_int.crt copiarle debajo el contenido del archivo Intermediate.crt.
+
+Buscar en Archivos_prod
+-- crt_int.crt  -- 
+
+10- Eliminar la configuracion de los certificados (Si no estan en uso los certificados de la universidad) 
+    Eliminar el stack (Huarpe - Usuarios)
+	Volver a ejecutar 
+	docker config create traefik_tls_cert servicios/certs/crt_int.crt
+	docker config create traefik_tls_cert servicios/certs/wildcard_universidad_edu_ar.key
+	
+	Volver a deployar los stacks
+	
+---------------------------------------------------
+Interfaz grafica Portainter para docker - Instalacion:
+---------------------------------------------------
+
+1- docker volume create portainer_data
+
+2- docker run -d -p 9000:9000 -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer
+
+3- docker -v "/var/run/docker.sock:/var/run/docker.sock"
+
+5- docker ps -a 
+para ver que portainer está levantado (es un servicio docker)
+
+6- http://xxxx.xxxx.xxx:9000/#/home
+
+7- Manual Portainer https://docs.portainer.io/v/ce-2.9/user/home
+
+----------------------------------
+Actualizar Portainer
+----------------------------------
+
+//Soluciona el problema de que los volumenes no se carguen
+
+1- docker stop portainer
+
+2- docker rm portainer
+
+3- docker pull portainer/portainer-ce:latest (opcional)
+
+4- 
+docker run -d -p 8000:8000 -p 9000:9000 -p 9443:9443 \
+    --name=portainer --restart=always \
+    -v /var/run/docker.sock:/var/run/docker.sock \
+    -v portainer_data:/data \
+    portainer/portainer-ce:latest
+----------- o ---------- 
+
+1- sudo docker stop portainer && sudo docker rm portainer
+
+2- docker pull portainer/portainer-ce:latest
+	
+3- docker run -d -p 9000:9000 -p 8000:8000 --name portainer --restart always -v /var/run/docker.sock:/var/run/docker.sock -v portainer_data:/data portainer/portainer-ce:latest
+	
+----------------------------------------------------------
+Grafana local en servidor: 
+----------------------------------------------------------
+
+admin / qwerty
+
+1- sudo apt-get update
+   
+2- sudo apt-get upgrade
+
+3- sudo apt-get install -y gnupg2 curl
+
+4- curl https://packages.grafana.com/gpg.key | sudo apt-key add -
+
+5- sudo add-apt-repository "deb https://packages.grafana.com/oss/deb stable main"
+
+6- sudo apt-get update
+
+7- sudo apt-get -y install grafana
+
+8- sudo systemctl start grafana-server
+
+9- sudo systemctl enable grafana-server
+
+Ahora Grafana está activo en el puerto :3000
+
+10- Crear el smtp https://techexpert.tips/grafana/grafana-email-notification-setup/
+
+     sudo apt-get install ssmtp
+	 nano /etc/ssmtp/ssmtp.conf
+
+     root=felnur17@gmail.com
+     mailhub=smtp.gmail.com:587
+     FromLineOverride=YES
+     AuthUser=felnur17@gmail.com
+     AuthPass=password
+     UseTLS=YES
+     UseST ARTTLS=YES
+	 
+	 echo "E-Mail using the command-line" | ssmtp felnur17@gmail
+	 
+     nano /etc/grafana/grafana.ini
+	 
+	 [smtp]
+     enabled = true
+     host = smtp.gmail.com:587
+     user = virtualcoin.videos@gmail.com
+     password = kamisama123
+     ;cert_file =
+     ;key_file =
+     skip_verify = true
+     from_address = virtualcoin.videos@gmail.com
+     from_name = Grafana
+     # EHLO identity in SMTP dialog (defaults to instance_name)
+     ;ehlo_identity = dashboard.example.com
+
+11- /etc/init.d/grafana-server restart
+
+---------------------------------------------
+Grafana en Docker - Con modificaciones de SMTP
+---------------------------------------------
+
+Argegar Grafana/Prometheus/Cadvisor a Docker: https://www.youtube.com/watch?v=PCJwJpbln6Q  
+
+Instalar con docker-compose: 
+
+1- git clone https://github.com/caosbinario/docker
+
+2- docker-compose pull
+
+3- docker-compose up -d // docker stack deploy -c docker-compose.yml NOMBREDESTACK
+
+Instalar con docker manualmente:
+
+docker run \
+  -d \
+  -p 3000:3000 \
+  --name grafana2 \
+  -e "GF_SMTP_ENABLED=true" \
+  -e "GF_SMTP_HOST=smtp.gmail.com:587" \
+  -e "GF_SMTP_USER=felnur17@gmail.com" \
+  -e "GF_SMTP_PASSWORD=" \
+  grafana/grafana:5.1.0
+
+Recuperar contraseña de grafana
+
+Local: docker exec -ti bb34e6ad0df2 grafana-cli admin reset-admin-password admin
+Docker: sudo grafana-cli admin reset-admin-password
+	
+-----------------------------------
+Eliminar todos los secrets de Docker 
+-----------------------------------
+
+docker stack rm huarpe usuarios docs sudocu
+
+docker secret rm usuarios_db_pass
+docker secret rm usuarios_ldap_admin_pass
+docker secret rm usuarios_ldap_config_pass
+docker secret rm usuarios_pass_salt
+docker secret rm usuarios_idp_simplesaml_admin
+docker secret rm usuarios_api_users
+docker secret rm docs_api_pass
+docker secret rm docs_db_pass
+docker secret rm docs_repo_pass
+docker secret rm docs_conexion_usuarios
+docker secret rm docs_conexion_sudocu
+docker secret rm huarpe_secret
+docker secret rm huarpe_usuarios_pass
+
+-----------------------------------
+Revisar uso de memoria y CPU de un contenedor en docker 
+
+docker stats --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}"
+docker stats --all --format "table {{.Container}}\t{{.CPUPerc}}\t{{.MemUsage}}" NOMBRE_CONTENEDOR
+
+-----------------------------------
+Inspeccionar un servicio
+
+docker service inspect sudocu_api-server --pretty
+
+-----------------------------------
+Inspeccionar un nodo
+
+docker node inspect --pretty eei-test-manager1
+
+-----------------------------------
+Reiniciar Cache de los contenedores
+
+docker service scale sudocu-cache=0
+docker service scale sudocu-cache=1
+
+docker service scale sudocu-api-server=0
+docker service scale sudocu-api-server=1
+
+-----------------------------------
+Cantidad de replicas con las que produccion fuciona correctamente (31-05-2022) :
+-----------------------------------
+
+>docs: 
+docs_api 1/1
+docs_worker 1/1
+
+>huarpe:
+huarpe_memcache_server 1/1
+huarpe_webapp 1/1
+
+>ldap:
+ldap 1/1
+
+>sudocu:
+sudocu_api-server 1/1 -> Necesita 1
+sudocu_cache 1/1  -> Necesita 1
+sudocu_gestion 3/3
+sudocu_login 3/3 
+sudocu_mpc 	3/3
+sudocu_mpd 	3/3
+sudocu_pdf 	3/3
+
+>traefik:
+traefik_reverse-proxy 1/1
+
+>usuarios:
+usuarios_api 3/3
+usuarios_idm 3/3
+usuarios_idp 3/3
+usuarios_memcached-server 1/1 
+
+-----------------------------------
+
+Bad Gateway 
+
+Si nos encontramos con este error al ingresar a univ.universidad , hay un problema en la red
+Reiniciar WORKERS y MANAGER
+Verificar que en el VMWare esten las redes correspondientes
+
+Tambien, sucedio cuando teniamos el traefik publico y el resto de la red privada.
+Hay que pedir la apertura de TODOS los puertos, desde la xxx.xx.xxx.xx a la red xxx.xx.xxx.xx
+Y desde la xxx.xx.xxx.xx a la red xxx.xx.xxx.xx - tambien en los logs aparece no rute to host
+
+-----------------------------------
+Error: No such image - No levanta usuarios
+-----------------------------------
+ 
+No levantan  algunos contenedores, esto es porque requieren el "–with-registry-auth" en el deploy 
+
+docker stack deploy --with-registry-auth -c usuarios.yml usuarios
+
+Verificar que el ldap este levantado correctamente, entrar a la aplicacion de ldap y verificar que los usuarios se listen en el desplegable de usuarios
+
+-----------------------------------
+
+Bind source path does not exsis in docker
+
+Si la carpeta montada (carpeta1:carpeta2/carpeta2) da error que no exsiste el directorio, este directorio debe exsistir en cada suwarm que este replicando.
+
+----------------------------------------------------------------------
+
+Esquema optimo de despliegue - Comportamiento de Traefkik - Respiesta SIU
+
+No hay un esquema óptimo de cómo escalar la instalación, además, va a variar mucho dependiendo de cada caso. Lo que podemos hacer es darte una serie de recomendaciones y puntos a tener en cuenta.
+
+1) Escalado horizontal:
+Inicialmente, tenés las recomendaciones de la web de expedientes:
+https://expedientes.siu.edu.ar/docs/rendimiento/#escalabilidad-horizontal
+Acá tenés que tener en cuenta que los servicios que vayas a escalar tienen que poder ser escalables, y las condiciones de esa escalibilidad. Por ejemplo, los distintos servicios de Araí Usuarios:
+https://expedientes.siu.edu.ar/docs/rendimiento/#arai-usuarios
+Además, también tener en cuenta de acuerdo a tu instalación, cuáles servicios es necesario que tengan replicas y cuáles no. Quizás no es necesario iniciar con todos los servicios replicados.
+
+2) Escalado vertical:
+Esto ya se refiere a los recursos que vas a asignar a cada servicio.
+Cada servicio tiene un mínimo y un máximo de recursos asignados (memoria y procesador):
+resources:
+   limits:
+       cpus: '0.2'
+       memory: 70M
+   reservations:
+       cpus: '0.05'
+       memory: 64M
+Los limits indican el máximo de recursos que va a usar el servicio, y los reservations indican el mínimo de recursos.
+En este punto tenés que considerar el servicio del api server de SUDOCU. Este servicio en limits necesita al menos 1 CPU y 4096M de RAM.
+Otros servicios que también necesitan extender el limit son el stamper de Araí Docs y pdf de SUDOCU.
+Pueden usar el comando docker stats para ir viendo los recursos que está utilizando cada servicio.
+
+3) Sobre Traefik:
+El proxy reverso de Traefik corre exclusivamente sobre nodos master, esto es fundamental.
+Si tienen expuesto solo nodo para que el tráfico ingrese, entonces Traefik debe correr en este nodo. Si el servicio de Traefik está replicado en todos nodos master, tienen que tener esto en cuenta y exponer los 3 nodos y configurar sus DNS adecuandamente para que tenga esto en cuenta.
+Hay algunos enlaces con información sobre este tema de Traefik, HA y DNS, pero sería ideal que lo analicen con su área de IT.
+Como mínimo hay que tener en cuenta estos puntos al momento de hacer el despliegue de toda la plataforma del SEEI, por todo esto es que les recomendamos iniciar su despliegue sobre un nodo máster (el mismo en el que corre el proxy reverso de traefik). Una vez que verifiquen que todas las operaciones funcionan correctamente comenzaría con el escalado de los servicios, tanto horizontal como vertical. Y a medida que van escalando, van verificando si los distintos errores que tienen persisten o se van resolviendo. Pero es un proceso que lo llevaría más paso a paso.
+Estas recomendaciones son las mismas que charlamos durante la última reunión, también consideramos que es la mejor forma de detectar en qué momento empiezan a aparecer los errores.
+
+----------------------------------------------------------------------
+
+Hacer una redireccion en Traefik 
+
+1. En la siguiente ruta: "/opt/expedientes/prod/servicios" creamos el archivo dynamic.conf.yml:
+
+http:
+   routers:
+     redirect-to-external:
+       rule: "Host(`https://test-univ.universidad.edu.ar`) && Path(/remitos)"
+       service: remitos
+   services:
+       remitos:
+         loadBalancer:
+           servers:
+             - url: "https://xxx.xx.xx.xx:4443/"
+
+2. Agregamos en el traefik.yml la siguiente linea en el espacio command llamando al dynamic.conf
+
+    command:
+      - --providers.file.filename=/opt/expediente/prod/servcios/dynamic_conf.yml
+
+3.
+
+----------------------------------------------------------------------
+
+Cambiar la contraseña del portainer:
+
+https://docs.portainer.io/advanced/reset-admin
+
+1- docker service scale portainer_portainer=0
+
+2-
+docker pull portainer/helper-reset-password
+docker run --rm -v portainer_portainer_data:/data portainer/helper-reset-password
+
+3- docker service scale portainer_portainer=1
+
+----------------------------------
+
+Pagina en blanco 
+
+usuarios_idp.1.t9wluqc4y91f@eei-dev    | [Thu Feb 22 12:11:07.262770 2024] [php7:notice] [pid 14] [client 10.0.1.71:40462] [2024-02-22 15:11:07] 
+Db.ERROR: Error conectandose a la DB {"parametros":{"host":"xxx.xx.xx.xx","port":"5432","dbname":"usuarios","username":"postgres","password":"********","schema":"usuarios","encoding":"LATIN1"},"dsn":"pgsql:host=xxx.xx.xx.xx;port=5432;dbname=usuarios","excepcion":"
+SQLSTATE[08006] [7] could not connect to server: Connection refused\n\\tIs the server running on host \\"xxx.xx.xx.xx\\" and accepting\n\\tTCP/IP connections on port 5432?","code":7} []\n
+
+Reiniciar postgres
+
+----------------------------------
+
+Cambiar certificados univ universidad.edu.ar 
+
+	docker stack rm traefik
+
+	docker config rm traefik_tls_cert
+	docer secret rm traefik_tls_key
+	
+	docker config create traefik_tls_cert crt_int.crt
+	docker secret create traefik_tls_key wildcard_universidad_edu_ar.key
+	
+	deploy traefik 
+	
+
+---------------------------------
+
+Cuando ejecutamos 
+docker pull hub.siu.edu.ar:5005/siu-arai/docs-api/api:$VERSION
+editar el version por:
+docker pull hub.siu.edu.ar:5005/siu-arai/docs-api/api:v1.x.x
+
+--------------------------------
+
+Si no se cargan los iconos/ imagenes, en el log de usuarios idm, dar permiso a la carpeta que carga las imagenes dentro del contenedor
+
+docker exec -it usuarios_idm.2.stdha1457ptepgztghdoi7qmn /bin/bash
+chmod 777 /usr/local/app/resources/resources/img/aplicaciones_iconos/
+
+----------------------
+Cambiar Imagenes, copiar dentro del Docker
+---------------------
+
+Para añadir imagenes al docker:
+
+1- Se debe buscar el nombre de la imagen jpg a cambiar en la pagina y buscarla en el docker
+
+2- Copiarla al docker
+docker cp   img_meta.png   huarpe_webapp.1.xipsjnpjw8qmde8wcudl5hwjg:/usr/local/app/web/img/logos/
+
+3- Ingresar al docker
+docker exec -it usuarios_api.1.pjdsdoptyae8fw5iw5rxfigk2 /bin/bash
+
+4- Buscar en el docker 
+find . -iname *.png
+
+5- Renombrar y reemplazar la imagen:
+mv logo-blanco-y-negro.png logo-blanco-y-negro.png.bk
+mv img_meta.png logo-blanco-y-negro.png
+
+Tener en cuenta que si el ID del docker no esta en el nodo master, puede estar en un nodo Worker. Por lo que este proceso se debe correr en todos los nodos.
+
+Si queremos pasar una imagen a varios contenedores al mismo tiempo con un script: 
+
+Buscar en Archivos_prod
+--images.sh--
+
+Si las imagenes en el huarpe no cargan, revisar las rutas donde se alojan las imagenes en Usuarios.yml
+ - /mnt/arai/resources/resources:/usr/local/app/resources
+ 
+--------------------------------------------
+
+Limites de memoria, memory limit:
+
+Memory reservation (MB)  	Minimum memory available on a node to run a task (set to 0 for unlimited) 
+
+Memory limit (MB)  	Maximum memory usage per task (set to 0 for unlimited) 
+
+Asi quedaria la pestaña Deploy con las modificaciones para que NO tenga maximo de memoriy usage:
+
+    deploy:
+      replicas: 1
+      resources:
+#        limits:
+#          cpus: '1'
+#          memory: 1024M
+        reservations:
+          cpus: '0.2'
+          memory: 256M
+
+Recordar que el numero de replicas de los contenedores tiene que ser consistente con la cantidad de nodos, asi se puede producir una replica por nodo
+		  
+--------------------------------------------
+
+Ansible
+
+Install:
+
+sudo apt-add-repository ppa:ansible/ansible
+sudo apt update
+sudo apt install ansible
+
+Config:
+Este archivo contiene informacion acerca de los hosts que manejamos
+sudo nano /etc/ansible/hosts
+
+ansible-inventory --list -y
+
+Test conection:
+
+ansible all -m ping -u root
+
+Command all servers:
+ansible all -u root -m ping -vvv --ask-pass
+
+Comand a server group (definidio anteriormente en el archivo):
+ansible servers1 -a "uptime" -u root --ask-pass
+ansible servers1:servers2 -a "uptime" -u root --ask-pass
+
+
+Delete -vvv for no verbose
+
+--------------------------------------------
+
+
+services.pdf.deploy.resources must be a mapping
+
+
+Hay algo mal identado en el stack
+
+------------------------------------------------------
+Agregar al grupo un usuario docker
+
+sudo usermod -aG docker <usuario>
+------------------------------------------------------
+
+Hasta ahora encontre esto
+Cadvisor arroja un error al no podes encontrar este contenedor 
+
+"1 manager.go:698] Error getting data for container /docker/f61c38724ac72b5c2d1f893eccc73b807eebff2f22026ef96fb5fe41c0cb49f6 because of race condition"
+
+Buscando el contenedor en cuestion, correspondiente a tr-backend-send me encuentro con esto
+PHP Fatal error:  Allowed memory size of 536870912 bytes exhausted (tried to allocate 655360 bytes) in /var/www/tr-app/vendor/mongodb/mongodb/src/Operation/FindAndModify.php on line 254
+PHP Fatal error:  Allowed memory size of 536870912 bytes exhausted (tried to allocate 20480 bytes) in /var/www/tr-app/vendor/mongodb/mongodb/src/Operation/FindAndModify.php on line 254
+PHP Fatal error:  Allowed memory size of 536870912 bytes exhausted (tried to allocate 65536 bytes) in /var/www/tr-app/vendor/composer/ClassLoader.php on line 576
+
+Busque el error y dice que alcanzo el limite de memoria asignada 
+
+Algo que tambien note es que algunos contenedores como el de cadvisor estan 3 horas adelantados
+
+Tambien encontre que ese contenedor se quedo en retrying con un mail en particular, cuando otros no los vi con tantos intentos
+
+------------------------------------------------------------------------------------------------------------
+
+Actualizacion 
+
+------------------------------------------------------------------------------------------------------------
+
+https://expedientes.siu.edu.ar/docs/1.6-to-1.7#171-a-172
+
+HACER UN SNAPSHOT
+Ampliar el disco a 310 gb todas
+
+
+Actualizacion total Version -->v1.7.3
+
+
+Docker 26 (opcional)
+Usuarios 3.2.4
+Huarpe 3.2.1
+Sudocu 1.4.12
+Documentos 1.6.1
+
+docker stack rm usuarios docs sudocu huarpe 
+
+------------------------------------------------------v1.7.1 to v1.7.2--------------------------------------------------------
+
+---------------------------- Actualicaion de achivos https://hub.siu.edu.ar/siu/expedientes/-/compare/v1.7.1...v1.7.2?page=2 --------------------------
+
+
+------------------------------------------------------v1.7.2 to v1.7.3--------------------------------------------------------
+									   
+---------------------------- Actualicaion de achivos https://hub.siu.edu.ar/siu/expedientes/-/compare/v1.7.2...v1.7.3 --------------------------
+
+Actualizacion de docs
+
+------------------------------------------------
+
+https://expedientes.siu.edu.ar/docs/1.6-to-1.7#171-a-172 
+
+
+Editar el migrar.env
+
+Backup de la base de datos:
+pg_dump -b -O -x --clean --create --disable-triggers --if-exists -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USERNAME} -d ${DB_DBNAME} -f dump_11.sql
+
+Actualizar docs:
+
+docker stack rm docs
+
+docker stack deploy --with-registry-auth --compose-file prod/arai/util/docs_actualizar_base.yml docs_actualizar_base
+
+docker service logs docs_actualizar_base_update -f
+docker stack rm docs_actualizar_base
+
+
+------------------------------------------------
+
+
+
+	
+	
+	Marcar un paquete para que no se actualice 
+	sudo apt-mark hold <package>
+	
+	Desmarcar un paquete
+	sudo apt-mark unhold <package>
+	
+
+	Actualizar y reiniciar
+
+
+
+Borrar logs para aumentar espacio: 
+
+sudo journalctl --vacuum-time=2weeks
+sudo journalctl --vacuum-size=100M
+
+
+---------------------------------
+
+Borrar logs para aumentar espacio: 
+
+sudo journalctl --vacuum-time=2weeks
+sudo journalctl --vacuum-size=100M
+
+---------------------------------
+
+Ejecutar el script de las imagenes
+
+---------------------------------
+Version 24
+
+for pkg in docker.io docker-doc docker-compose docker-compose-v2 podman-docker containerd runc; do sudo apt-get remove $pkg; done
+docker --version
+sudo apt install docker-compose-v2
+docker --version
+docker ps
+systemctl start docker.service
+
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+

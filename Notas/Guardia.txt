@@ -1,0 +1,484 @@
+--------------------------------------------------------------------------------------------------------------
+🛠️ GUARDIA 
+--------------------------------------------------------------------------------------------------------------
+
+--------------------------------------------------------------------------------------------------------------
+🔹Fallo en placa de red
+--------------------------------------------------------------------------------------------------------------
+
+Diagnostico placa de red ej wan0
+
+cat /sys/class/net/wan0/carrier
+0->Desconectado
+1->Conectado
+
+ethtool wan0 | grep -i link
+ethtool lan0 | grep Speed
+100 es bueno
+10  es malo
+
+ip -s link show wan0
+ip link set wan0 down
+ip link set wan0 up
+
+ifdown bond0
+ifup bond0
+
+Perdida de paquetes queda un servidor en connecting
+mtr 192.168.100.1 (desde el b) 
+mtr 192.168.100.1 (desde el a)
+
+/root/fix_bond_ifaces
+
+Scripts para chequear usados por nagios (monitoreo)
+
+/usr/lib64/nagios/plugins/eth_speed
+/usr/lib64/nagios/plugins/check_bond 
+
+ifdown lan0
+ifdown lan
+ifdown lan1
+ifup lan1
+ifup lan0
+ifup bond0
+
+dmesg -T
+dmesg | grep -i wan0
+
+ping 192.168.100.2
+ping 192.168.100.1
+
+
+/root/servicios.sh down
+mcedit /etc/udev/rules.d/60-net.rules
+tail -f /var/log/servicios.log 
+
+# Consultar y manipular el estado de la interfaz de red Ethernet.
+mii-tool -r lan0 
+
+lspci
+ip link show - Si dicen state UP, estan correctas, sino dirian state DOWN
+
+ifconfig -a - Las mac van en este archivo mcedit /etc/udev/rules.d/60-net.rules
+La que este asignando ip, es la de backend ''bkl0''  en su totalidad de las veces comienza con una combinacion diferente a las otras 3 que son TPlink,
+
+ip -6 route show - no tiene que ser unreachable
+
+----------------------------------------------
+
+Si se ven dos placas de red o tres y las otras no, el problema puede estar en el calbe utp. Que las ajusten y las vuelvan a colocar
+
+Si las placas de red no levantan conifup ifdown cambiar el 
+MTU=4000 a 1500 o 9000(segun tincho)
+En el archivo de configuracion de la lan1 lan0 y bond0
+
+--------------------------------------------------------------------------------------------------------------------------------
+🧰 Error de perdida de paquetes 
+--------------------------------------------------------------------------------------------------------------------------------
+
+dmesg
+perdiendo paquetes en wan0
+
+[18071335.511352] pcieport 0000:00:1b.3: PCIe Bus Error: severity=Corrected, type=Physical Layer, id=00db(Receiver ID)
+[18071335.518022] pcieport 0000:00:1b.3:   device [8086:06c3] error status/mask=00000001/00002000
+[18071335.524662] pcieport 0000:00:1b.3:    [ 0] Receiver Error         (First)
+[18071335.531103] pcieport 0000:00:1b.3: AER: Multiple Corrected error received: id=00db
+[18071335.537574] pcieport 0000:00:1b.3: can't find device of ID00db
+[18071337.557673] pcieport 0000:00:1b.3: AER: Multiple Corrected error received: id=00db
+[18071504.453585] pcieport 0000:00:1b.3:    [ 0] Receiver Error         (First)
+[18071504.462672] pcieport 0000:00:1b.3:    [ 6] Bad TLP               
+[18071504.471710] pcieport 0000:00:1b.3:    [ 7] Bad DLLP              
+[18071504.480912] pcieport 0000:00:1b.3: AER: Multiple Corrected error received: id=00db
+[18071504.490170] pcieport 0000:00:1b.3: can't find device of ID00db
+
+mantenimiento general de harEMPare
+upgrade de bios
+revisar la placa wan0 y cables que estén en buen estado
+
+--------------------------------------------------------------------------------------------------------------------------------
+
+🔹server1 Diskless
+
+drbdadm status
+lsscsi -s
+lsblk -f
+lsscsi -s
+reboot
+drbdadm status
+service keepalived restart
+drbdadm status
+lsblk -f
+drbdadm status
+drbdadm -v adjust --all
+lsscsi -s
+mc 
+drbdadm status
+ls /home/
+drbdadm -v adjust -all
+ls /home/
+drbdadm status
+
+
+🔹server2 Diskless
+
+ls -l /dev/disk/by-id/
+more /etc/drbd.d/particion.res 
+ls -l /dev/disk/by-id/nvme-Lexar_SSD_NM620_1TB_NBG863W104782P1110-part1
+grep nvme-Lexar_SSD_NM620_1TB_NBG863W104778P1110 /etc/drbd.d/*res
+blkid
+ls -l /dev/disk/by-id/*-part1
+CT240BX500SSD1_2418E8AC74FC /etc/drbd.d/*res
+grep KINGSTON_SKC6001024G_50026B7784DC6791 /etc/drbd.d/*res
+grep Lexar_SSD_NM620_1TB_NBG863W104778P1110 /etc/drbd.d/*res
+grep eui.0000000623012653caf25b0410001184 /etc/drbd.d/*res
+grep 0x50026b7784dc6791 /etc/drbd.d/*res
+fdisk -l
+dmesg -H 
+drbdadm status
+fdisk -l|grep nvme
+poweroff 
+drbdadm status
+ethtool bond0
+ethtool wan0
+systemctl status keepalived.service 
+systemctl start keepalived.service 
+
+--------------------------------------------------------------------------------------------------------------------------------
+
+Root roto, archivos parecen forman una frase, se intenta pisar el bueno(b) al malo (a)
+
+🔍Diagnóstico inicial (en server66a)
+Se detecta que el root está roto (probablemente un sistema dañado, archivos PHP corrompidos).
+Se intenta identificar qué archivos están corruptos o faltan (ej. Commons.inc.php, FzMysqliDb.class.php, etc.).
+Se inspeccionan logs: panel/error_log, taz.err, taz.log, servicios.log.
+Se usan comandos como df -h, ll, grep, mcedit, cat para entender el estado del sistema y servicios.
+
+🛠️ Intento de reparación
+Edición y chequeo de scripts y clases PHP en /opt/panel/lib/php/panelCommons/DB/.
+Se prueban reinicios de servicios como taz, dovecot.
+Se revisan procesos activos, puertos abiertos (netstat), configuración de cronjobs.
+
+💾 Recuperación desde server66b
+Se transfiere un respaldo de /root.tar.gz desde server66a hacia server66b.
+Se observan logs históricos (last, journalctl, /var/log/messages) para identificar errores de arranque o servicios fallidos.
+Se deshabilitan servicios problemáticos: imunify360, ossec, etc.
+
+🔹 Sección: Diagnóstico inicial en servidor2
+bash
+Copy
+Edit
+df -h
+ll
+ll -tr
+cd /scripts/
+ll -tr
+mcedit test.sh 
+mcedit 'Commons.inc.php(8):'
+grep "curl" -r /scripts/
+cat /var/log/panel/error_log
+crontab -l
+
+🔹 Sección: Archivos y scripts críticos
+bash
+Copy
+Edit
+cd /usr/lib64/nagios/plugins/
+./check_taz 
+cat ./check_taz
+/opt/panel/bin/checktaz.php
+
+cd /opt/panel/lib/php/panelCommons/DB/
+mcedit FzMysqliDb.class.php
+cat FzMysqliDb.class.php
+cat MysqliDbBase.class.php
+ll -tr
+
+🔹 Sección: Logs y estado de servicios
+bash
+Copy
+Edit
+dmesg -T
+ps fax
+less /var/log/panelm
+netstat -putan | grep -i listen
+netstat -putan | grep 10
+systemctl status taz
+systemctl status dovecot
+systemctl restart taz
+journalctl -xu taz
+tail -f /var/log/taz.err 
+tail -f /var/log/taz.log 
+
+🔹 Sección: Validación de sitios, procesos y cronjobs
+bash
+Copy
+Edit
+ls /home/
+./datos.sh servidor
+
+crontab -e -u servidor
+crontab -l -u servidor
+ps fu -u cuenta|
+ll /home/cuenta/public_html
+
+🔹 Sección: Acceso, sincronización y backup 
+bash
+Copy
+Edit
+scp -p /root.tar.gz xx.xxx.xx:/root/Info/Baks/root.tar.gz
+rsync -av /root.tar.gz xx.xxx.xx:/root/Info/Baks/roota.tar.gz
+rm /root.tar.gz
+ll Info/Baks/
+
+🔹 Sección: Servicios rotos y desactivación
+bash
+Copy
+Edit
+systemctl list-units | sort | grep -w failed
+systemctl reset-failed imunify360-agent.service imunify360.service ossec-hids.service rc-local.service
+systemctl is-enabled imunify360-agent.service imunify360.service ossec-hids.service
+systemctl disable imunify360-agent.service imunify360.service ossec-hids.service
+cat /etc/rc.local
+
+🔹 Sección: Auditoría, logs del sistema y firewall
+bash
+Copy
+Edit
+journalctl -lu rc-local.service
+ps faxu
+uptime
+grep "Jan 24" /var/log/messages | grep -v snmpd
+grep "Jan 24 23:" /var/log/messages | grep -v -e snmpd -e "systemd: Started" -e "Removed"
+
+🔹 Sección: Red, SSH, reglas y sincronización
+bash
+Copy
+Edit
+ll .ssh/
+lsattr .ssh/
+/root/remote_sync
+mc /var/log/
+ll /var/log/servicios.log
+/root/firewall_rules
+
+
+--------------------------------------------------------------------------------------------------------------------------------
+
+🔹Cambio de motherboard y micro
+
+ifconfig -a
+ip a
+dmesg | less
+ifconfig
+lspci
+lsmod
+modprobe r8125
+lspci
+cat /etc/centos-release
+ping google.com
+ls
+ls *rpm
+drbdadm status
+dmesg
+dmesg -Hw
+poweroff
+ifconfig
+ifconfig -a
+mcedit /etc/udev/rules.d/60-net.rules
+ip link set dev eth0 down
+ip link set dev eth0 name bkl0
+ip link set dev bkl0 up
+ifup blk0
+ifup bkl0
+uptime
+ps fax | grep keep
+service keepalived status
+drbdadm status
+ps fax
+service keepalived start
+df -h
+
+ 
+🔹server17b – Diagnóstico, acceso remoto y chequeos
+
+cat /proc/cpuinfo
+mc
+fdisk -l
+cfdisk
+less /etc/rc.d/rc.local
+ifconfig
+ssh server17a
+lspci
+drbdadm status
+dmesg -Hw
+service keepalived status
+ps fax
+host aprenderred.com
+./datos.sh aprenderred.com
+cd /home/i1000185/public_html
+wp core version
+cd
+for L in $(ipset list -name | grep -v ^white | sort) ; do echo ${L} ; ipset list ${L} | fgrep 146.168.92.168 ; done
+./ipinfo.sh 
+iptables -nL | grep 
+--------------------------------------------------------------------------------------------------------------------------------
+📁 Faltan archivos php, error de archivo
+--------------------------------------------------------------------------------------------------------------
+
+Fatal error: main(): Failed opening required 'panelCommons/DB/FzDbFactory.class.php' (include_path='.:/opt/panel/lib/php') in /opt/panel/lib/php/panelCommons/GlbObjCollection.class.ion56.php on line 8
+
+Verificación de archivos ausentes o corruptos
+ll /opt/panel/lib/php/panelCommons/DB/FzDbFactory.class.php
+ll /opt/panel/lib/php/panelCommons/DB/FzMysqliDb.class.php
+ls /opt/panel/lib/php/panelCommons/DB/FzMysqliDb.class.php
+ll /opt/panel/lib/php/panelCommons/DB/ | grep "feb"
+
+
+El archivo FzDbFactory.class.php tenía tamaño 0.
+Fue renombrado como .bkp y reemplazado con una copia de otro servidor.
+Aun así, siguieron apareciendo errores similares, lo cual sugiere que faltan otros archivos.
+Se reemplazó también FzMysqliDb.class.php, que no existía en el sistema y fue traído manualmente.
+Se sugiere reemplazar toda la carpeta DB/ desde un sistema sano.
+
+--------------------------------------------------------------------------------------------------------------------------------
+
+🔹Problemas con placa de red
+
+1. Verificación y exploración de interfaces de red
+
+# Muestra las interfaces de red y sus configuraciones básicas
+ifconfig
+
+# Comando moderno para mostrar interfaces y direcciones IP
+ip a
+
+# Mostrar interfaces y sus enlaces (estado)
+ip link
+
+# Listar interfaces con ruta del dispositivo PCI para identificar harEMPare asociado
+for iface in $(ls /sys/class/net/); do
+  echo "$iface: $(readlink /sys/class/net/$iface/device)"
+done
+
+
+2. Consulta del estado y configuración detallada de interfaces Ethernet
+# Mostrar configuración, velocidad, duplex y errores de interfaz lan0 y lan1 (tarjetas físicas)
+ethtool lan0
+ethtool lan1
+
+# Mostrar detalles de la interfaz bonding (bond0), que agrupa las físicas
+ethtool bond0
+
+3. Reinicio y manipulación del estado de interfaces para pruebas
+
+# Bajar y levantar la interfaz lan0 para resetearla
+ip link set lan0 down
+ip link set lan0 up
+
+# Reiniciar la interfaz bonding
+ifdown bond0
+ifup bond0
+
+4. Revisión y análisis de logs para encontrar errores
+# Buscar mensajes con "error" en logs generales
+grep error /var/log/messages
+
+# Buscar mensajes relacionados con interfaces específicas en logs
+grep lan0 /var/log/messages
+grep lan1 /var/log/messages
+grep bond0 /var/log/messages
+
+# Consultar logs del sistema filtrando por niveles de error (1=crítico a 5=warning)
+journalctl -p 1
+journalctl -p 2
+journalctl -p 3
+journalctl -p 4
+journalctl -p 5
+
+7. Verificación de harEMPare y módulos del kernel
+# Listar dispositivos PCI para verificar detección física de tarjetas
+lspci
+
+# Comprobar que el módulo del kernel para la tarjeta (e1000 u otro) esté cargado
+lsmod | grep e1000
+lsmod | grep 82
+
+# Mostrar información detallada del módulo e1000
+modinfo e1000
+mcedit /etc/udev/rules.d/60-net.rules
+reboot
+
+1. Conectividad y acceso remoto
+ping c
+ssh c
+df
+drbdadm status
+
+2. Interfaces de red y enlaces
+ip link
+ip link set lan0 up
+ip link set lan0
+ifdown bond0 ; ifup bond0
+ip a
+
+3. Configuración persistente
+cat /etc/fstab 
+mcedit /etc/udev/rules.d/60-net.rules 
+mcedit /etc/udev/rules.d/60-net.rules 
+
+4. Comandos de diagnóstico de red
+
+ethtool bond0
+ethtool lan0
+ethtool lan1
+mii-tool -r lan0
+ip a
+ip link
+ip link set lan0 up
+ifdown bond0 ; ifup bond0
+
+5. Comandos de estado y diagnóstico DRBD
+
+drbdadm status
+drbdadm -- --dry-run connect particion
+Comandos de uso de disco y sistema de archivos
+
+df
+fsck -fCy /dev/mapper/VG2-home
+mount /dev/mapper/VG2-home
+mount /home/backup/
+mount /home/backup/MFS/
+
+6. Comandos de gestión y consulta de servicios (systemctl)
+
+systemctl status
+systemctl status panel
+systemctl restart network.service
+systemctl stop nrpe.service crond.service php*-php-fpm.service httpd
+systemctl start nrpe.service crond.service php*-php-fpm.service httpd
+systemctl status socat
+systemctl start socat
+systemctl status proxysql
+systemctl start proxysql
+systemctl status exim
+systemctl status dovecot
+systemctl status taz
+systemctl status httpd
+systemctl status imunify360
+systemctl start imunify360-unified-access-logger
+systemctl start aibolit-resident.socket
+systemctl list-units --failed
+
+
+----------------------------------------------------------------
+
+🔹Falla en maquinas virtuales:
+
+Apago las virtuales y reinicio el xvm a ver si vuelve a levantar
+
+Sino pido que revisen la placa de red
+
+----------------------------------------------------------------
+leer dmesg
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

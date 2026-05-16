@@ -1,0 +1,560 @@
+----------------------------------------------------
+DRBD con Keepalived
+----------------------------------------------------
+
+En esta guia veremos como instalar y configurar DRBD y keepalived en AlmaLinux 8 y 9, tanto requerimientos como archivos de configuracion.
+
+
+------------------------------------------------------------------------------------DRBD------------------------------------------------------------------------------------
+
+Drbd de los dos servidores n8n:
+
+Agregar drbd y configuraciones keepalived:
+
+- Para utilizar drbd se necesita agregar placa de red y hacer un p2p entre servidores:
+
+Una vez agregada la placa de red, la incorporamos a este archivo:
+/etc/udev/rules.d/70-persistent-ipoib.rules 
+
+- Renombramos la conexion para ponerle ip 192.168.100.1 y 192.168.100.2 si es necesario:
+
+nmcli connection modify lan0 ipv4.method manual
+nmcli connection modify "Wired connection 1" connection.id lan0
+
+nmcli connection modify lan0 \
+  ipv4.addresses 192.168.100.1/24 \
+  ipv4.method manual
+
+nmcli connection modify lan0 connection.interface-name lan0
+
+
+- Instalar keepalived
+
+dnf install keepalived
+
+
+- Copiar la siguiente configuracion de /etc/keepalived/keepalived.conf :
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+global_defs {
+    notification_email {
+        informes.diarios@donweb.com
+    }
+
+    notification_email_from root@directusa.com (invertir en el b)
+    smtp_server 127.0.0.1
+    smtp_connect_timeout 30
+    router_id directusa
+    script_user root
+}
+
+vrrp_instance VI_1 {
+    state BACKUP
+    interface bkl0
+    virtual_router_id 1
+    priority 100
+    advert_int 5
+    nopreempt
+
+    virtual_ipaddress {
+        ip.backend dev bkl0 label bkl0:1
+    }
+
+    track_interface {
+        bkl0
+    }
+
+    unicast_src_ip ip.servidor.a  (invertir en el b)
+
+    unicast_peer {
+        ip.servidor.b  (invertir en el b)
+    }
+
+notify_master "/etc/keepalived/keepalived_notify MASTER"
+notify_backup "/etc/keepalived/keepalived_notify BACKUP"
+notify_fault  "/etc/keepalived/keepalived_notify FAULT"
+
+}
+ 
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+- Crear el archivo con permisos de ejecucion /etc/keepalived/keepalived_notify o copiar de app-front01a editando segun corresponda:
+
+-rwxr-xr-x 1 root root 1319 ago  4 22:39 keepalived_notify
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#!/bin/bash
+TYPE=$1
+NAME=$2
+STATE=$3
+SERVERNAME=$(hostname -s | tr '[:lower:]' '[:upper:]')
+EMAIL_ALERT="usuario3.apellido@empresa.com"
+EMAIL_SUMMARY="iti@empresa.com"
+echo "1: $1   2: $2  3: $3" > /root/servicios.txt
+
+case ${STATE} in
+    "MASTER")
+        [ -x /etc/keepalived/gateway ] && /etc/keepalived/gateway
+        /root/serviciosarriba.sh
+        echo "$SERVERNAME: $TYPE $NAME transition to $STATE STATE" | mail -E -s "$SERVERNAME: $TYPE $NAME transition to $STATE STATE" ${EMAIL_ALERT}
+        if [ ! -f /tmp/keepalived_notify.alert ] || [ $(($(date +%Y%m%d%H%M)-$(date -r /tmp/keepalived_notify.alert +%Y%m%d%H%M))) -gt 1 ] ; then
+            echo > /tmp/keepalived_notify.alert
+            sleep 5 && for i in $(pgrep keepalived) ; do grep $i /var/log/messages | grep -e MASTER -e BACKUP ; done | mail -E -s "$SERVERNAME: Summary transition STATE" ${EMAIL_SUMMARY}
+        fi
+    ;;
+    "BACKUP")
+        /root/serviciosup.sh
+    ;;
+    "FAULT")
+        echo "$SERVERNAME: $TYPE $NAME transition to $STATE STATE" | mail -E -s "$SERVERNAME: $TYPE $NAME transition to $STATE STATE" ${EMAIL_ALERT}
+        /root/serviciosdown.sh
+    ;;
+    *)
+        echo "$SERVERNAME: $TYPE $NAME transition to $STATE STATE" | mail -E -s "$SERVERNAME: $TYPE $NAME UNKNOWN STATE" ${EMAIL_ALERT}
+        exit 1
+    ;;
+esac
+
+exit 0
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+- Crear el archivo /etc/keepalived/gateway:
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+#!/bin/bash
+
+source /etc/lb.conf
+ip route add default via xx.xx.xx.xx dev ${IFACE_BKE}
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+- Crear el archivo /etc/lb.conf
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+IFACE_BKE=bkl0
+IFACE_WAN=wan0
+IP_BKE_MASTER=xx.xx.xx.xx
+IP_WAN_MASTER=xx.xx.xx.xx
+IP_BKE_BACKUP=xx.xx.xx.xx
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+- Editar, serviciosup, llamado por el keepalived. Con permisos de ejecucion:
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+#!/bin/bash
+ 
+export PATH="/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/sbin:/usr/local/bin"
+ 
+LOG="/root/servicios.log"
+LOCK="/root/serviciosup.lock"
+ 
+exec >> "$LOG" 2>&1
+echo "[$(date +'%Y-%m-%d %H:%M')] Inicio de servicios UP"
+ 
+# Lockfile
+if [ -f "$LOCK" ]; then
+    echo "Ya está corriendo otro proceso de serviciosup."
+    ps axf | grep "$(cat "$LOCK")" | grep -v grep
+    exit 1
+else
+    echo $$ > "$LOCK"
+fi
+ 
+# Recursos DRBD
+declare -A recursos=(
+    ["/home"]="particion"
+#    ["/var/www"]="www1"
+)
+ 
+# Promover a primary y esperar dispositivos
+for punto in "${!recursos[@]}"; do
+    recurso="${recursos[$punto]}"
+    dispositivo="/dev/drbd${recurso/particion/0}"
+#    dispositivo="${dispositivo/www1/1}"
+ 
+    echo "[$(date +'%Y-%m-%d %H:%M')] Promoviendo $recurso a Primary..."
+ 
+# Esperar a que el peer esté en Secondary o no conectado
+echo "Esperando que el peer de $recurso esté en Secondary o desconectado..."
+for i in {1..30}; do
+    estado=$(drbdadm status "$recurso" | grep -A1 "peer-disk" | tail -n1)
+    echo "  → Estado peer: $estado"
+    if echo "$estado" | grep -Eq 'Secondary|Diskless|Inconsistent|Consistent|Negotiating'; then
+        break
+    fi
+    sleep 1
+done
+ 
+# Intentar promover a Primary
+echo "Promoviendo $recurso a Primary..."
+if ! drbdadm primary "$recurso" --force; then
+    echo "ERROR: No se pudo promover $recurso a Primary. Verificá estado del nodo peer."
+    drbdadm status "$recurso"
+    rm -f "$LOCK"
+    exit 1
+fi
+ 
+echo "[$(date +'%Y-%m-%d %H:%M')] $recurso en Primary"
+    if ! drbdadm status "$recurso" | grep -q "role:Primary"; then
+        echo "[$(date +'%Y-%m-%d %H:%M')] ERROR: No se pudo poner $recurso en Primary"
+        rm -f "$LOCK"
+        exit 1
+    fi
+ 
+    echo "[$(date +'%Y-%m-%d %H:%M')] Esperando a que $dispositivo esté disponible..."
+    for j in {1..10}; do
+        if [ -b "$dispositivo" ]; then
+            echo "$dispositivo disponible"
+            break
+        fi
+        sleep 1
+    done
+ 
+    if [ ! -b "$dispositivo" ]; then
+        echo "ERROR: $dispositivo no apareció en /dev"
+        drbdadm status "$recurso"
+        rm -f "$LOCK"
+        exit 1
+    fi
+ 
+    # Verificar sistema de archivos
+    if ! blkid "$dispositivo" | grep -q "TYPE="; then
+        echo "ERROR: $dispositivo no tiene sistema de archivos. ¿Se olvidaron de formatear?"
+        rm -f "$LOCK"
+        exit 1
+    fi
+ 
+    # Montar si no está montado
+    if ! mountpoint -q "$punto"; then
+        echo "Montando $dispositivo en $punto..."
+        mount "$dispositivo" "$punto" && echo "$punto montado correctamente." || {
+            echo "ERROR: Falló montaje de $punto"
+            rm -f "$LOCK"
+            exit 1
+        }
+    else
+        echo "$punto ya está montado."
+    fi
+done
+ 
+###### Iniciar servicios  ######
+echo "Iniciando servicios..."
+
+##Agregar servicios
+
+# Nginx
+systemctl start nginx.service
+if ! systemctl is-active --quiet nginx.service; then
+    echo "ERROR: nginx no se pudo iniciar"
+    rm -f "$LOCK"
+    exit 1
+fi
+ 
+# Limpieza final
+echo "[$(date +'%Y-%m-%d %H:%M')] serviciosup completado correctamente. Borrando lockfile..."
+rm -f "$LOCK"
+exit 0 
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+- Editar, serviciosdown, llamado por el keepalived:
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+#!/bin/bash
+ 
+export PATH="/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/sbin:/usr/local/bin"
+#PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/local/sbin
+#export PATH
+ 
+sleep 2
+LOG="/root/servicios.log"
+LOCK="/root/serviciosdown.lock"
+ 
+echo "serviciosdown" >> "$LOG"
+echo "$(date +"%Y-%m-%d %H:%M") empezando a bajar todo..." | tee -a "$LOG"
+ 
+# Lockfile
+if [ -f "$LOCK" ]; then
+    echo "ya está tratando de bajar servicios..." | tee -a "$LOG"
+    ps axf | grep $(cat "$LOCK") | grep -v grep | tee -a "$LOG"
+    exit 1
+else
+    echo "$(date +"%Y-%m-%d %H:%M") creando lockfile..." | tee -a "$LOG"
+    echo $$ > "$LOCK"
+fi
+ 
+###### Parar servicios ######
+echo "Parando servicios..." | tee -a "$LOG"
+
+# Nginx
+echo "Parando nginx..." | tee -a "$LOG"
+systemctl stop nginx.service
+if systemctl is-active --quiet nginx.service; then
+    echo "ERROR: nginx sigue funcionando" | tee -a "$LOG"
+    rm -f "$LOCK"
+    exit 1
+fi
+
+##Agregar Servicios
+
+ 
+# Recursos y puntos de montaje
+declare -A recursos
+recursos["/home"]="particion"
+##recursos["/var/www"]="www1"
+ 
+# Desmontar y bajar DRBD
+for punto in "${!recursos[@]}"; do
+    recurso="${recursos[$punto]}"
+ 
+    echo "Procesando $punto -> DRBD $recurso" | tee -a "$LOG"
+ 
+    if mountpoint -q "$punto"; then
+        echo "Intentando desmontar $punto..." | tee -a "$LOG"
+        if umount "$punto"; then
+            echo "$(date +"%Y-%m-%d %H:%M") $punto desmontado correctamente." | tee -a "$LOG"
+        else
+            echo "No se pudo desmontar $punto" | tee -a "$LOG"
+            df -h | grep "$punto" | tee -a "$LOG"
+            rm -f "$LOCK"
+            exit 1
+        fi
+    else
+        echo "$punto ya está desmontado." | tee -a "$LOG"
+    fi
+ 
+    echo "Pasando $recurso a secundario..." | tee -a "$LOG"
+    drbdadm secondary "$recurso"
+    sleep 2
+ 
+    if drbdadm status | grep "$recurso role:Secondary" | grep -v grep ; then
+        echo "$(date +"%Y-%m-%d %H:%M") $recurso correctamente en Secondary." | tee -a "$LOG"
+    else
+        echo "Error: $recurso no pasó a Secondary correctamente." | tee -a "$LOG"
+        drbdadm status | tee -a "$LOG"
+        rm -f "$LOCK"
+        exit 1
+    fi
+done
+ 
+# Todo OK
+echo "$(date +"%Y-%m-%d %H:%M") Todos los recursos desmontados y en Secondary. El otro nodo puede tomar el control." | tee -a "$LOG"
+echo "borrando lockfile" | tee -a "$LOG"
+rm -f "$LOCK"
+exit 0
+ 
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+- Configurar repositorio alma9/8:
+
+dnf install https://www.elrepo.org/elrepo-release-9.el9.elrepo.noarch.rpm
+rpm --import https://www.elrepo.org/RPM-GPG-KEY-elrepo.org
+
+dnf -y install https://www.elrepo.org/elrepo-release-8.el8.elrepo.noarch.rpm
+rpm --import https://www.elrepo.org/RPM-GPG-KEY-elrepo.org
+
+- Instalar los paquetes necesarios en alma 9/8:
+
+sudo dnf install kmod-drbd9x drbd9x-utils
+sudo dnf install kmod-drbd9x drbd9x-utils
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+- Setear los hostnames 
+
+[root@directus01 ~] # hostnamectl set-hostname directus.backend
+
+[root@directus02 ~] # hostnamectl set-hostname directus.backend
+
+- Editar el siguiente archivo
+Desactivar el envio de datos a LinBit (empresa desarrolladora de DRBD) editando /etc/drbd.d/global_common.conf y cambiando "usage-count yes" por "usage-count no"
+
+/etc/drbd.d/global_common.conf
+global {
+        usage-count no;
+
+- Crear el archivo /etc/drbd.d/recurso.res para compartir una partición, por ejemplo /etc/drbd.d/particion.res:
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+resource particion {
+    device              /dev/drbd0;
+    disk                /dev/sda1;
+    meta-disk           internal;
+    flexible-meta-disk  internal;
+
+    options {
+        auto-promote no;
+    }
+
+    net {
+        protocol C;
+        after-sb-0pri  discard-least-changes;
+        after-sb-1pri  discard-secondary;
+        after-sb-2pri  call-pri-lost-after-sb;
+    }
+
+    disk {
+        on-io-error    detach;
+        no-md-flushes;
+        no-disk-flushes;
+    }
+
+    on n8n01a.linux.backend {
+        address xx.xx.xx.xx;
+    }
+
+    on n8n01b.linux.backend {
+        address xx.xx.xx.xx;
+    }
+
+}
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+- Editar /etc/drbd.d/global_common.conf
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+# DRBD is the result of over a decade of development by LINBIT.
+# In case you need professional services for DRBD or have
+# feature requests visit http://www.linbit.com
+
+global {
+        usage-count no;
+
+        # Decide what kind of udev symlinks you want for "implicit" volumes
+        # (those without explicit volume <vnr> {} block, implied vnr=0):
+        # /dev/drbd/by-resource/<resource>/<vnr>   (explicit volumes)
+        # /dev/drbd/by-resource/<resource>         (default for implict)
+        udev-always-use-vnr; # treat implicit the same as explicit volumes
+
+        # minor-count dialog-refresh disable-ip-verification
+        # cmd-timeout-short 5; cmd-timeout-medium 121; cmd-timeout-long 600;
+}
+
+common {
+        handlers {
+                # These are EXAMPLE handlers only.
+                # They may have severe implications,
+                # like hard resetting the node under certain circumstances.
+                # Be careful when choosing your poison.
+
+                # IMPORTANT: most of the following scripts symlink to "notify.sh" which tries to send mail via "mail".
+                # If you intend to use this notify.sh script make sure that "mail" is installed.
+                #
+                # pri-on-incon-degr "/usr/lib/drbd/notify-pri-on-incon-degr.sh; /usr/lib/drbd/notify-emergency-reboot.sh; echo b > /proc/sysrq-trigger ; reboot -f";
+                # pri-lost-after-sb "/usr/lib/drbd/notify-pri-lost-after-sb.sh; /usr/lib/drbd/notify-emergency-reboot.sh; echo b > /proc/sysrq-trigger ; reboot -f";
+                # local-io-error "/usr/lib/drbd/notify-io-error.sh; /usr/lib/drbd/notify-emergency-shutdown.sh; echo o > /proc/sysrq-trigger ; halt -f";
+                # fence-peer "/usr/lib/drbd/crm-fence-peer.sh";
+                # split-brain "/usr/lib/drbd/notify-split-brain.sh root";
+                # out-of-sync "/usr/lib/drbd/notify-out-of-sync.sh root";
+                # before-resync-target "/usr/lib/drbd/snapshot-resync-target-lvm.sh -p 15 -- -c 16k";
+                # after-resync-target /usr/lib/drbd/unsnapshot-resync-target-lvm.sh;
+                # quorum-lost "/usr/lib/drbd/notify-quorum-lost.sh root";
+                # disconnected /bin/true;
+        }
+
+        startup {
+                # wfc-timeout degr-wfc-timeout outdated-wfc-timeout wait-after-sb
+        }
+
+        options {
+                # cpu-mask on-no-data-accessible
+
+                # RECOMMENDED for three or more storage nodes with DRBD 9:
+                # quorum majority;
+                # on-no-quorum suspend-io | io-error;
+        }
+
+        disk {
+                # size on-io-error fencing disk-barrier disk-flushes
+                # disk-drain md-flushes resync-rate resync-after al-extents
+                # c-plan-ahead c-delay-target c-fill-target c-max-rate
+                # c-min-rate disk-timeout
+        }
+
+        net {
+                # protocol timeout max-epoch-size max-buffers
+                # connect-int ping-int sndbuf-size rcvbuf-size ko-count
+                # allow-two-primaries cram-hmac-alg shared-secret after-sb-0pri
+                # after-sb-1pri after-sb-2pri always-asbp rr-conflict
+                # ping-timeout data-integrity-alg tcp-cork on-congestion
+                # congestion-fill congestion-extents csums-alg verify-alg
+                # use-rle
+        }
+}
+
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+- Agregamos en iptables el puerto 9002:
+
+/etc/sysconfig/iptables
+(se puede agregar 9003 si hay mas de una particion)
+
+-A INPUT -p tcp -m state --state NEW -m tcp -s 0.0.0.0/0 --dport 9002 -j ACCEPT
+-A OUTPUT -p tcp --sport 9002 -j ACCEPT
+
+- Borramos las particiones de la unidad a utilizar.
+
+(Borrar si existe)
+[root@n8n01a ~] # ll /dev/drbd0 
+[root@n8n01a ~] # rm /dev/drbd0 
+
+wipefs -a /dev/sdb
+sgdisk --zap-all /dev/sdb
+
+drbdadm wipe-md particion
+
+- Cambiar sistema de archivos y crear nueva particion:
+
+mkfs.ext4 /dev/sda
+fdisk /dev/sda 
+mkfs.ext4 /dev/sda1
+wipefs -a /dev/sda1
+
+- Hay que ejecutar drbdadm y confirmar en ambos servidores.
+
+systemctl disable drbd@particion.target
+drbdadm create-md particion
+drbdsetup down particion
+systemctl enable drbd@particion.target
+
+
+- Probar el pase:
+
+systemctl restart keepalived.conf
+
+y monitorear en ambos lados con tail -f /root/servicios.log
+
+Tarda un poco en montarse
+  
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------  554  2026-05-15 09:16:34 systemctl restart keepalived.service Text File.txt
+
+Ajustar permisos
+
+chmod +x /etc/keepalived/keepalived_notify
+chmod +x /root/serviciosup.sh
+chmod +x /root/serviciosdown.sh
+
+chmod 700 /etc/keepalived/keepalived_notify
+chmod 700 /root/serviciosup.sh
+chmod 700 /root/serviciosdown.sh
+chown root:root /etc/keepalived/keepalived_notify
+chown root:root /root/serviciosup.sh
+chown root:root /root/serviciosdown.sh
+
+
+setenforce 0
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

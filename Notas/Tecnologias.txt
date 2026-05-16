@@ -1,0 +1,281 @@
+----Servidores compartidos y fisicos - DRBD - Raid 1 - LVM -----
+
+Se les llama compartidos porque tienen varios clientes. Tienen todos los clientes
+
+Ambos tienen DRBD, que actualiza la informacion al instante y funciona como raid 1 - MIRROR
+Tienen SSD de 240 con el operativo
+sda5 /opt /var /spool
+sda6 /Mail
+
+Para switchear entre compartidos, usa keepailived, que mantiene uno de los dos ON, el secundario o el primario. Cuentan con una IP flotante
+
+Se organizan en volumenes LVM (almacena varios discos en una unidad logica)
+Volume Group 1
+
+Todo lo que sea mail son discos mecanicos /sda6 (esto va a cambiar)
+
+Los clientes se encuentran en /home
+Las configuraciones se encuentran en /opt/apache
+Los logs se encuentran en /opt/apache/logs
+
+Los chequeos que se muestran en nagios salen de los scripts de lib64/nagios/plugins 
+Usa flash cache mail para el rapido acceso
+Simula un solido ssd.
+
+Los comaprtidos comparten licencia de immunify, esto quiere decir que hay un cron que corre un script que chequea si el master levantado actualmente tiene la licencia activa.
+Si un compartido no levanta, o levanta mal cuando cambia el servicio por la IP flotante, reiniciar keepalived
+http://docs-iti.dat/display/ITLIN/Servidores+compartidos
+
+----Backup del Hosting compartido - ZFS - Agus----
+
+Respecto al servidor de arriba, se hace backup de /home/Nrousr y /mail/Nrousr
+
+El backup se hace con una herramienta llamada RDIFF.
+Hay 16 servidores de backup desde bkp001 - bkp 016
+Si bien hace copia de todo el directorio home, lo importante es la carpeta public_html
+Si tiene mas de 5g en el public, y es una cuenta base, el backup no se hace
+
+Utiliza ZFS, es un sistema de archivos para organizar la escalabilidad, todos los discos se combinan para crear un gran storage pool
+
+Si la carga es mayor a 5, a las 7:00 hs el backup no se realiza, manda un mail avisando
+
+----Bases de datos - Martin y Gonza----
+
+16 servidores de base de datos con estructura master master, con replicacion cruzada e ip flotante
+BKP01 BKP02	
+
+Si el parametro seconds behind master esta en null, es porque se corto la duplicacion, si esta en 0 es porque esta corriendo bien
+Si last_IO error no dice nada es porque esta ok
+
+./while.sh es el script que arregla la replicacion 
+luego hay que listar las bases y pisar las que fueron afectadas
+
+----Mount----
+
+Por ejemplo, al conectar un disco externo, hay que montarlo
+Los usb se montan auto camente en los desktops
+
+Hay que montar manualmente
+
+Esto monta el sdb1 en mnt/media1, primero el device - luego el mountpoint:
+sudo mount /dev/sdb1 /mnt/media1
+y asi podemos ver lo que tiene el disco sdb
+
+Informacion de los montados:
+lsblk -S
+
+Infomracion del disco a montar:
+sudo disktipe /dev/sdb1
+
+Generalmente, se montan en /mnt
+
+mount no solo muestra los montados fisicos sino, los que usa el sistema linux para correr. Los fisicos los muestra al final
+
+Al montar, le podemos poner el filesistem que necesita con la opcion -t
+Por ejemplo sudo mount -t zfs  /dev/sdb1 /mnt/media1
+
+Tambien podemos agregar opciones con -o ro (READ ONLY)
+
+Unmounting, remover el archivo montado
+podes desmontar el punto de montado
+sudo umount /mnt/media1
+o remover el dispositivo con 
+sudo umount /dev/sdd1
+
+target is busy: cuando se intenta desmontar, y por ejemplo estas dentro de lo que queres desmontar
+
+DF  -h  es human readable -T especifica el filesystem
+df -hT 
+
+----RAID----
+
+RAID: Reduntant Array Independent Disks
+
+Agrupa varios discos, como si fuera uno
+Seguridad, si falla un disco no perdemos toda la informacion
+Velocidad, ssd rapidas
+Un raid NO es un backup
+
+Cuando trozeamos un bloque de informacion en el Raid, se guardan en los distintos discos en pedazos de xMB
+
+Si un disco falla, hay otro que sale, los datos son copiados en todos los discos
+
+Raid 0
+No hay tolerancia a falla, los datos no son duplicados. Son DISTRIBUIDOS, la data es perdida cuando se cae un disco
+No deberia ser llamado raid ni siquiera
+Los bloques de 2 discos escriben la mitad de informacion en cada uno. Si perdemos un solo raid, perdemos todo.
+Si hay un raid de 4 discos y perdemos uno, perdemos TODO
++Velocidad
+
+Raid 1
+Toreltante a fallas, la data es copiada en varios discos, cuando uno falla, el otro tiene un duplicado. 
+Es el famoso MIRROR / ESPEJO
+Si falla un disco, se retira y el sistema vuelve a copiar.
+La lectura es mas rapida porque lee la mitad de los bloques de cada disco, mas discos es mas velocidad. Pero perdemos almacenamiento ya que solo se usa la mitad
+
+Raid 5
+Necesita 3 o mas discos, es comumente la mas usada. No es data duplicada, es data distribuida entre todos los discos, esta data llamada parity se usa para reconstruir la data en caso de perdida
+Almacena una paridad que puede reconstruir la data perdida, pero la almacena en todos los discos
+Si hay 5TB entre los 5 discos por ejemplo, hay 4TB disponibles, ya que el equivalente a un disco entero, se usa para guardar parity
+
+Raid 10
+Combina raid 1 y raid 0
+Es un raid, dentro de otro raid, la data es distribuida entre dos, luego esos dos duplican la data en cada uno
+----LVM----
+
+Logical Volume Manager
+
+Hay 3 layer en el modelo
+
+Fisico:
+/dev/sdb1
+/dev/sdb2
+
+Volume Group:
+Esta compuesto por uno o mas volumes fisicos
+Algunos comandos especificos se aplican a volumenes especificos
+
+Logical Volume:
+Es lo que montas en el sistema para almacenamiento de usuario
+Disco 1
+Disco 2
+Disco 3
+
+Listar en LVM
+lsblk
+/sda disk
+/sdb
+-/sdb1
+-/sdb2
+
+Escanea los volumenes fisicos PV
+sudo pvscan
+
+Lista las particiones
+sudo disktype /dev/sdb
+
+Crear volumenes fisicos
+sudo pvcreate /dev/sdb1 /dev/sdb2
+
+- 
+
+Escanear los volumenes group:
+sudo vgscan
+
+Crear volumenes group con dos discos:
+sudo vgcreate SERVER_VG /deb/sdb1 /deb/sdb2
+
+-
+
+Escanear los logical volumes:
+sudo lvscan
+
+Crear volumenes logicos:
+sudo lvcreate --name disk1 --size 20g GUEST_VG
+siendo guest_vg de donde saca el espacio
+y disk 1 el nombre del disco
+
+sudo lvcreate --name disk2 --size 5g GUEST_VG
+
+En orden de usar el espacio, tenemos que poner un filesistem en el logical volume, lo podemos ver con 
+sudo disktype /dev/GUEST_VG/disk 1
+Blank disk es que no tienen ningun filesystem
+
+ESto crea las estructuras ntfs
+sudo mkfs.ntfs -QIL /dev/GUEST_VG/disk1
+
+Se pueden montar los volumenes logicos
+mount /dev/GUEST_VG/disk1   /mnt/invitado
+
+----ZFS----
+
+Todos los discos se combinan para crear un gran storage pool, bajo el gran pool no es nada mas que carpetas, compartiendo espacio
+
+Mirrors: Dos o mas discos con contenidos compartidos - Mirror es Raid 1
+
+Sistema de archivos, estable y solido
+
+Se puede poner los dispositivos juntos creando un pool llamado Zpool
+
+Se puede crear Raidz y mirror.
+
+Hay que pensar que no esta manteniendo la data, esta guardando tiempo para que reemplaces el disco
+
+El sistema de archivos es parte del zpool, puede tener propiedades heredadas. Por ejemplo todo dentro de /var tiene compresion
+zpool list 
+lista el espacio total y el espacio utilizado
+
+Que es vdev
+Un disco solo, un mirror de uno o mas discos, un raidz de muchos discos en una raid
+
+Reemplazar un disco
+zpool replace zroot gpt/diskx gpt/diskx1
+el proceso termina y se puede extraer el disco
+
+gpart, crea una particion de disco
+
+Crea un mirror en 2 dispositivos
+zpool create mydata sda1 sda2
+
+zpool status mydata 
+muestra el esatado del pool
+
+zpool create mydata raidz1 
+sda1 sda2/ sda3 sda4
+
+----KeepAlived----
+
+Keepalived es una herramienta de software que se utiliza para implementar el VRRP en una red. 
+Funciona enviando mensajes entre los routers que participan en el VRRP para determinar quién es el router activo y quién es el router de respaldo. 
+Si el router activo falla o se desconecta, el router de respaldo toma el control y comienza a enrutar el tráfico de la red.
+
+---Immunify----
+
+Antivirus con licencia, sirve para escanear archivos
+
+----Cloudfare----
+
+Hay que cambiar la ZonaDNS a la de Cloudfare
+Usar Cloudflare con un servidor Linux ofrece varias ventajas, entre las que se incluyen:
+
+Mejora del Rendimiento: Cloudflare utiliza una red de entrega de contenido (CDN) que almacena en caché los recursos estáticos de tu sitio (como imágenes y archivos CSS/JS), lo que reduce la carga en tu servidor y acelera los tiempos de carga para los usuarios.
+Seguridad: Cloudflare proporciona protección contra ataques DDoS, firewalls de aplicaciones web (WAF) y medidas de mitigación que ayudan a proteger tu sitio contra amenazas.
+Optimización del Tráfico: Cloudflare puede optimizar el tráfico, utilizando técnicas como la compresión y la minificación, lo que mejora aún más el rendimiento del sitio.
+Análisis y Monitoreo: Proporciona estadísticas detalladas sobre el tráfico, lo que te permite entender mejor el comportamiento de los usuarios y detectar patrones sospechosos.
+Reglas de Página: Puedes establecer reglas personalizadas para redirigir, bloquear o ajustar configuraciones específicas para diferentes URL.
+Escalabilidad: Con Cloudflare, puedes manejar picos de tráfico sin tener que preocuparte por la sobrecarga en tu servidor, ya que gran parte del tráfico se maneja en su red.
+
+----Litespeed----
+
+Mejora el rendimiento
+
+LiteSpeed es un servidor web de alto rendimiento que se utiliza para servir sitios y aplicaciones web. Aquí hay algunos aspectos clave sobre LiteSpeed:
+
+Rendimiento: LiteSpeed es conocido por su capacidad para manejar grandes cantidades de tráfico y solicitudes concurrentes de manera eficiente, lo que lo convierte en una opción popular para sitios de alto tráfico.
+Compatibilidad: Es compatible con aplicaciones PHP, lo que significa que puede ejecutar plataformas populares como WordPress, Joomla y Magento sin problemas.
+Caché: LiteSpeed incluye funcionalidades avanzadas de caché que mejoran significativamente los tiempos de carga al almacenar en caché páginas y contenido dinámico.
+Seguridad: Ofrece características de seguridad integradas, como protección contra ataques DDoS y una gestión avanzada de conexiones.
+
+----Modsecirity---
+
+ModSecurity es un es un firewall de aplicaciones Web embebible que ejecuta como módulo del servidor web Apache
+Escanea vunlerabilidad en plugins de wordpress, no esta en todos los servidores.
+Flash cache mail es para que accedan mas rapido a la carpeta mails
+No usan redis para manejar sesiones, usan Valky, que es una extension de redis
+
+Zona DNS
+
+El DNS es el que permite la comunicacion entre el hosting (almacenamiento) y el dominio (nuts.com)
+
+Verificar en DNS de una pagina: https://intodns.com/
+
+
+------------
+Diferencias entre fastxgi y fpm
+
+fastcgi yq esta discontinuado, en php, fastcgi abre las pestanias y quedan abiertas consumiendo
+fmp es mas practico ya que si el proceso esta inactivo, se paga
+------------
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

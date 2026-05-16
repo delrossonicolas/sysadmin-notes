@@ -1,0 +1,91 @@
+-------------------------------------------------------------------- Reemplazo de disco sda en chunk----------------------------------------------------------------------------------------------------------------------------------------
+
+Fijarse si hay Chunk Missing
+
+1- Conectar por usb un disco ssd al servidor afectado
+
+2- Copiar la tabla de particiones
+sfdisk -d /dev/sda > partition_table.sfdisk
+sfdisk -d /dev/sda | sfdisk --force /dev/sdg
+mkfs.xfs /dev/sdg1
+
+lsblk -f
+mkfs.xfs -f /dev/sdg1
+mkfs.xfs -f /dev/sdg3
+
+3- Formatear sdg1 y sdg3
+
+mkdir DiscoNuevo
+
+4- Montar y Rsync 
+mount /dev/sdg3 /mnt/DiscoNuevo/
+rsync -aHSAX --exclude={"/dev/*","/lost+found","/media/*","/mnt/*","/proc/*","/run/*","/sys/*","/tmp/*","/boot/*"} / /mnt/DiscoNuevo/
+
+5- Montar y Rsync
+mount /dev/sdg1 /mnt/DiscoNuevo/boot/
+rsync -aAXv /boot/ /mnt/DiscoNuevo/boot/
+
+6- Editar a mano el 
+mcedit /etc/hostname
+
+7- Desmontar
+
+parted /dev/sda
+
+8- Ir al servidorbackup y sacar los archivos de codfig de root/backup
+
+Copiar las configs 
+en etc/mfs, network scripts, flashcache, /etc/fstab con los UUID o nombre de disco
+sysconfig y las config de red
+
+
+El montaje lo hace el fstab si es SSD
+El montaje lo hace flashcache si es HDD
+Si un servidor tiene un SSD puede tener en el flashcache el disco comentado y en el fstab habilitado
+SSD va en fstab. Ver Mailoss152
+
+El orden para el fstab es el siguiente y solo tiene que tener esos 3 salvo el caso de arriba ej (Mailoss152)
+El fstab pyede estar definido por nombre o por UUID
+
+Con 
+blkid | grep sda 
+nos fijamos
+
+sda1 boot
+sda2 swap
+sda3 /
+
+9- Desmontar
+
+umount /mnt/DiscoNuevo/boot 
+umount /mnt/DiscoNuevo
+
+
+10 - Verificar los ID de discos con 
+ll /dev/disk/by-id/ata*
+
+ll /dev/disk/by-id/ata-* | grep "part1\|sdb1\|sdserver\|sdd1\|sde1\|sdf"
+
+
+11- Poner un finnix en el datacenter e instalar grub. Hacerlo arrancar en modo legacy. Reiniciar hasta que quede el sda
+
+mkdir /mnt/sysimage
+mount /dev/sda3 /mnt/sysimage ----> puede cambiar el numero de particion del /  casi siempre es la 3
+for i in /dev /dev/pts /proc /sys /run; do mount -B $i /mnt/sysimage$i; done
+chroot /mnt/sysimage
+mount /boot
+grub2-install --force /dev/sda
+grub2-mkconfig -o /boot/grub2/grub.cfg
+exit
+
+systemctl disable flashcache
+systemctl disable moosefs-chunkserver.service
+
+reboot
+
+12-  Crear las carpetas /mnt/chunk11 a chunk15 a mano
+
+systemctl enable flashcache
+systemctl enable moosefs-chunkserver.service
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

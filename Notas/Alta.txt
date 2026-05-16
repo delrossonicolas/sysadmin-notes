@@ -1,0 +1,780 @@
+----------------------------------------
+drbd y Alta compartidos 
+----------------------------------------
+
+systemctl stop drbd
+
+Verificar que los discos correspondan a su ID
+
+grep "ata-KINGSTON_SKC6001024G_500E57F-part1" /etc/drbd.d/particion.res 
+
+
+mcedit /etc/drbd.d/particion.res
+
+#drbdadm -v down particion
+systemctl stop drbd
+
+Listar ID de discos segun particion
+ll /dev/disk/by-id/ | grep sda | grep part1
+ll /dev/disk/by-id/ | grep sdb | grep part1
+ll /dev/disk/by-id/ | grep sdc | grep part1
+ll /dev/disk/by-id/ | grep sdd | grep part1
+ll /dev/disk/by-id/ | grep sde | grep part1
+ll /dev/disk/by-id/ | grep sdf | grep part1
+
+lsblk 
+sdb         8:16   0 953,9G  0 disk            KINGSTON SKC6001 50026B7785BBC3E6
+└─sdb1      8:17   0 926,7G  0 part                             
+  └─drbd2 147:2    0 926,7G  0 disk                             
+sdc         8:32   0 953,9G  0 disk            KINGSTON SKC6001 50026B7785BBC3D9
+└─sdserver      8:33   0 926,7G  0 part                             
+sdd         8:48   0 953,9G  0 disk            KINGSTON SKC6001 50026B7785BBC367
+└─sdd1      8:49   0 926,7G  0 part                             
+  └─drbd3 147:3    0 926,7G  0 disk                             
+sde         8:64   0 953,9G  0 disk            KINGSTON SKC6001 50026B7785BBC3DC
+└─sde1      8:65   0 926,7G  0 part                             
+  └─drbd4 147:4    0 926,7G  0 disk                             
+sdf         8:80   0 953,9G  0 disk            KINGSTON SKC6001 50026B7785B1E57F
+
+Copiar los ID y empezar a buscar segun corresponda particion con disco
+
+Correcto:
+grep 50026B7785BBC3E6 /etc/drbd.d/particion.res 
+    disk                /dev/disk/by-id/ata-KINGSTON_SKC6001024G_50026B7785BBC3E6-part1;
+
+Incorrecto:
+grep 50026B7785BBC3D9 /etc/drbd.d/particion.res 
+    
+Entonces editar:
+
+cat /etc/drbd.d/particion.res 
+
+resource particion {
+    device              /dev/drbd5;
+    disk                /dev/disk/by-id/ata-KINGSTON_SKC6001024G_50026B7785B1E57F-part1; 
+
+systemctl start drbd
+
+Borrar todas las particiones del drbd:
+
+drbdadm status
+
+drbdadm -v down particion particion particion particion particion
+
+drbdsetup down particion
+drbdsetup down particion
+drbdsetup down particion
+drbdsetup down particion
+drbdsetup down particion
+
+drbdadm status
+
+drbdadm -v wipe-md particion 
+yes
+
+drbdadm -v wipe-md particion
+yes
+
+drbdadm -v wipe-md particion
+yes
+
+drbdadm -v wipe-md particion
+yes
+
+drbdadm -v wipe-md particion
+yes
+
+
+dd if=/dev/zero of=/dev/disk/by-id/ata-KINGSTON_SKC6001024G_50026B7785BBC3E6-part1 bs=1M count=512
+dd if=/dev/zero of=/dev/disk/by-id/ata-KINGSTON_SKC6001024G_50026B7785BBC3D9-part1 bs=1M count=512
+dd if=/dev/zero of=/dev/disk/by-id/ata-KINGSTON_SKC6001024G_50026B7785BBC367-part1 bs=1M count=512
+dd if=/dev/zero of=/dev/disk/by-id/ata-KINGSTON_SKC6001024G_50026B7785BBC3DC-part1 bs=1M count=512
+dd if=/dev/zero of=/dev/disk/by-id/ata-KINGSTON_SKC6001024G_50026B7785B1E57F-part1 bs=1M count=512
+
+drbdadm -v create-md particion
+drbdadm -v create-md particion
+drbdadm -v create-md particion
+drbdadm -v create-md particion
+drbdadm -v create-md particion
+drbdadm -v up particion particion particion particion particion
+
+drbdadm status
+
+-----------------------------------------
+
+http://docs-iti.dat/pages/viewpage.action?pageId=537919507
+
+1- Hacer pedidos a redes y NOC
+
+Los compartidos se arman con SSD todos (antes se usaba flashcache)
+
+http://jira-iti.dat/browse/IDRI-732
+
+http://jira-iti.dat/browse/NOCIS-2324
+
+
+2- Chequear placas de RED - Redes
+
+lspci -v
+
+for iface in $(ls /sys/class/net/); do echo "$iface: $(readlink /sys/class/net/$iface/device)"; done
+
+Tiene que estar la backend al principio (menor)
+y la wan tiene que estar al final (mayor)
+
+ip link show
+
+Si dicen state UP, estan correctas, sino dirian state DOWN
+
+Hay algunas placas de red incompatibles por mother en Centos7
+
+Con respecto al pedido de redes, las IP que se cargan en spacewalk son las privadas - las IP que se cargan en pdnso1 son las publicas
+
+
+3- Verificar discos (Son 6 discos)
+
+lsblk
+
+sda         232,9G  0 disk 
+ 
+   ├─sda1    part /boot
+ 
+   ├─sda2    part 
+ 
+   ├─sda5    part [SWAP]
+ 
+   ├─sda6    part /
+ 
+   └─sda7   part /home
+   
+dd if=/dev/sda of=/dev/sdb bs=600M
+
+
+mcedit /etc/hostname
+server.dominio.com
+
+mcedit  /etc/sysconfig/network-scripts/ifcfg-bkl0
+
+Ingresamos y modificamos la ip que trae por la que nos corresponde segun nuestro servidor, en este caso era la siguiente  xxx.xx.xx.xx
+Guardamos y cerramos el archivo ifcfg-bkl0
+Ahora hacemos un mcedit en la ruta siguiente para comentar / borrar las lineas de la interfaz de red y la IP asignada por defecto
+
+mcedit /etc/rc.local
+ 
+Lineas a borrar:
+# ifconfig eth0 192.168.2.169 up
+# route add default gw 192.168.2.1
+
+ifconfig -a
+buscamos las mac de cada placa y las remplazamos en la siguiente ruta
+
+mcedit /etc/udev/rules.d/60-net.rules
+
+4-
+
+A continuacion hacemos un ifconfig -a para listar las interfaces de red del servidor, la que este asignando ip, es la de backend ''bkl0''  en su totalidad de las veces comienza con una combinacion diferente a las otras 3 que son TPlink,
+
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", ATTR{address}=="d8:5e:d3:02:6b:7d", ATTR{type}=="1", KERNEL=="eth*", NAME="bkl0"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", ATTR{address}=="00:5f:67:0a:a4:67", ATTR{type}=="1", KERNEL=="eth*", NAME="lan0"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", ATTR{address}=="00:5f:67:0a:dd:15", ATTR{type}=="1", KERNEL=="eth*", NAME="lan1"
+SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", ATTR{address}=="00:5f:67:0a:dc:fc", ATTR{type}=="1", KERNEL=="eth*", NAME="wan0"
+
+Orden:
+
+Backend
+Lan 0-1
+Lan 0-1
+Wan
+
+5- host server.dominio.com 
+host servera.dominio.com 
+host serverb.dominio.com 
+
+En las direcciones ipv6 el 0 a la izquierda no importa
+
+Estas direcciones representan lo mismo
+
+Verificar que devuelva la IPV6 correspondiente
+
+6- Pedir a Gonza/Tincho y a Agus un Mysql y un Backup respectivamente
+
+Si no esta hecha la lista del backup, crearla
+
+sshmysql9
+mcedit servidores
+
+ssh bkp006
+zfs create -o mountpoint=/mnt/list08 bkpstore/list08
+
+7- Ejecutamos el alta a
+
+Guardar las lineas que genero el script para agregar en panel y fcmirror
+
+8 - Chequear discos nuevamente
+
+(sda debe tener 6 particiones creadas y sda S.O debe estar en el puerto 0:0 del sata)
+lsscsi
+lsblk -f
+
+9- 
+
+# Verificamos que esten todas las interfaces correctas
+ifconfig -a
+ip link show
+ 
+# Levantamos las faltantes
+ip link set INTERFAZ up
+
+10 - Agregar a panel desde mipc
+
+con el comando que arrojo el alta
+
+# ssh -qt panel3@fzweb01 "/opt/panel3/bin/panelCLI.php createserver cXX.panel.com xxx.xx.xxx.xx xxx.xx.xx.xx Linux dhmcontrol PASSWORD serverXX.panel.com"
+
+# ssh bkpmds00 "./mkdir_bkpmfs.sh serverXX"
+
+10- Agregar a fcmirror la ip
+
+ssh fcmirror 
+mcedit /home/fcmirror/public_html/shared/glob_allow.rules
+
+11- Hacer el ssh contra el servidor de bkp para generar la relacion de confianza ej: "ssh bkp016"
+
+12- Editar en nuestro server el archivo hosts mcedit /etc/hosts
+
+13- Corregimos en /etc/panel/server.conf el IPV6 Wan Flotante
+
+ssh cacti.dat
+
+14- Particionamos
+
+# Primero verificar que los discos esten en el orden correcto (Altas nuevas están saliendo todos discos de 1TB SSD):
+for i in sd{b..f}; do printf "Disco $i es $( if [[ $(cat /sys/block/$i/queue/rotational) -eq 0 ]];then echo SSD;elif [[ $(cat /sys/block/$i/queue/rotational) -eq 1  ]];then echo MECANICO;fi)\n\n";done
+ 
+bash parted.sh
+ 
+# Luego reiniciamos:
+reboot
+ 
+ # Va a quedar particionado de la siguiente manera:
+sda                                                     
+├─sda1 vfat   EFI   7239-B382                            /boot/efi
+├─sda2 ext4   BOOT  d46e95c3-e9c9-4e89-bserver5- /boot
+├─sda3 swap   SWAP  22b3f04b-b240-4b2c-a404- [SWAP]
+├─sda4 ext4   RAIZ  b221a6fa-49server-42a7-ac65- /
+├─sda5                                                  
+└─sda6 
+ 
+# Configuramos el lvm en servidor "a"
+bash /root/configura-lvm-a.sh
+ 
+# Finalmente se vera:
+sda                                                             
+├─sda1         vfat   EFI   7239-B382                            /boot/efi
+├─sda2         ext4   BOOT  d46e95c3-e9c9-4e89-bserver5- /boot
+├─sda3         swap   SWAP  22b3f04b-b240-4b2c-a404- [SWAP]
+├─sda4         ext4   RAIZ  b221a6fa-49server-42a7-ac65- /
+├─sda5                                                          
+│ └─drbd1                                                       
+│   ├─VG1-opt  ext4         c3ba73b7-624a-4f0f-803c-
+│   ├─VG1-exim ext4         510ee28e-bbcc-4de9-9cd1-
+│   └─VG1-src  ext4         cdeee8cb-4ce6-4c38-96ae-
+└─sda6
+
+15- 
+
+systemctl enable drbd.service
+ 
+# Luego reiniciamos
+reboot
+
+16- Copiar la info de /opt , /usr/src y /var/spool/exim al correspondiente lvm creado, asi se comparte
+
+drbdadm status
+drbdadm --force primary all
+ 
+# Con todos los recursos como primario seguimos
+drbdadm status
+ 
+systemctl restart lvm2-lvmetad.service lvm2-lvmpolld.service
+ 
+(pvscan ; vgscan ; lvscan) > /dev/null
+ 
+vgchange -ay
+  
+ll /dev/mapper/
+  
+mount /dev/mapper/VG1-opt /mnt/
+rsync --delete -avH /opt/ /mnt/
+umount /mnt/
+  
+mount /dev/mapper/VG1-src /mnt/
+rsync --delete -avH /usr/src/ /mnt/
+umount /mnt
+  
+mount /dev/mapper/VG1-exim /mnt/
+rsync --delete -avH /var/spool/exim/ /mnt/
+umount /mnt
+ 
+# Finalmente
+rm -fr /opt/*
+rm -fr /var/spool/exim/*
+rm -fr /usr/src/*
+
+17- Keepalived
+
+# virtual_router_id editar
+mcedit /etc/keepalived/keepalived.conf
+
+chmod 0555 /
+
+
+systemctl enable keepalived.service
+ 
+#Luego reiniciamos
+reboot
+
+# Keepalive ya tiene que haber levantado las particiones y el servicio responder por IPV4 Wan desde afuera.
+for P in $(df -hT | awk '/ext4/ {print $1}') ; do tune2fs -r 1000 ${P} ; done
+
+18 - Activamos quota - limitar el uso de espacio en disco por usuarios o grupos
+
+quotaoff -uva
+ 
+quotacheck -uva
+ 
+touch /home/aquota.user
+touch /Mails/aquota.user
+chmod 0600 /home/aquota.user
+chmod 0600 /Mails/aquota.user
+ 
+quotacheck -uva
+ 
+quotaon -uva
+
+19 - Desde mi PC
+
+ssh -t bkpmds01 '/root/mkdir_bkpmfs.sh SERVIDOR'
+ssh -t bkpmds01 '/root/mkdir_bkpmfs.sh '
+
+20- 
+
+mkdir /home/backup
+chown panel:root /home/backup
+mount /home/backup/
+mount /home/backup/MFS/
+mkdir /home/backup/weekly_rsync
+
+21- borrar scripts
+rm -vf /root/alta-virtual*.sh /root/configura-lvm*.sh
+
+22- Licencia
+
+wget  http://panel.net/zion/authorized_keys.users -O /root/.ssh/authorized_keys && cat /root/.ssh/authorized_keys2 >> /root/.ssh/authorized_keys
+rm -vf /root/.ssh/authorized_keys2
+
+Copiar la linea del dhmcontrol que esta en /opt/panel/etc/passwd-dhm del servidor compartido anterior a este alta. (273)
+[root@ANTERIOR ~] # cat /opt/panel/etc/passwd-dhm
+Copiamos la siguiente linea solo la linea detallada →
+dhmcontrol:$apr1$ndBiGasdas37dfads1adea8dasDSDasd232dasda
+
+ssh server75
+mcedit /opt/panel/etc/passwd-dhm
+
+/scripts/php5 /scripts/flr
+
+#############################  CONFIGURACIÓN SERVIDOR "b" ########################
+
+
+24 -
+
+lsscsi
+lsblk -f
+
+
+# Verificamos que esten todas las interfaces correctas
+ifconfig -a
+ip link show
+ 
+# Levantamos las faltantes
+ip link set INTERFAZ up
+
+25- Agregar el host del backup
+mcedit /etc/hosts
+
+26- Particionar
+
+# Primero verificar que los discos esten en el orden correcto (Altas nuevas están saliendo todos discos de 1TB SSD):
+for i in sd{b..f}; do printf "Disco $i es $( if [[ $(cat /sys/block/$i/queue/rotational) -eq 0 ]];then echo SSD;elif [[ $(cat /sys/block/$i/queue/rotational) -eq 1  ]];then echo MECANICO;fi)\n\n";done
+ 
+bash parted.sh
+ 
+# Luego reiniciamos:
+reboot
+ 
+ # Va a quedar particionado de la siguiente manera:
+sda                                                     
+├─sda1 vfat   EFI   7239-B382                            /boot/efi
+├─sda2 ext4   BOOT  d46e95c3-e9c9-4e89-bserver5- /boot
+├─sda3 swap   SWAP  22b3f04b-b240-4b2c-a404- [SWAP]
+├─sda4 ext4   RAIZ  b221a6fa-49server-42a7-ac65- /
+├─sda5                                                  
+└─sda6 
+ 
+# Configuramos el lvm en servidor "b"
+bash /root/configura-lvm-b.sh
+ 
+# En este caso se vera igual sin cambios:
+sda                                                     
+├─sda1 vfat   EFI   7239-B382                            /boot/efi
+├─sda2 ext4   BOOT  d46e95c3-e9c9-4e89-bserver5- /boot
+├─sda3 swap   SWAP  22b3f04b-b240-4b2c-a404- [SWAP]
+├─sda4 ext4   RAIZ  b221a6fa-49server-42a7-ac65- /
+├─sda5                                                  
+└─sda6
+
+
+ssh bkp016                       
+                       
+27- systemctl enable drbd.service
+
+28- Borrar Info
+
+rm -fr /opt/*
+rm -fr /var/spool/exim/*
+rm -fr /usr/src/*
+
+29- Dejar en 255
+
+mcedit /etc/keepalived/keepalived.conf
+
+30-
+
+chmod 0555 /
+
+systemctl enable keepalived.service
+ 
+#Luego reiniciamos
+reboot
+
+31- borrar scripts
+rm -vf /root/alta-virtual*.sh /root/configura-lvm*.sh
+
+32- Licencia - 
+
+wget  http://panel.net/zion/authorized_keys.users -O /root/.ssh/authorized_keys && cat /root/.ssh/authorized_keys2 >> /root/.ssh/authorized_keys
+rm -vf /root/.ssh/authorized_keys2
+
+
+for R in home{1,2} mail{1..3} sda5 ; do drbdsetup peer-device-options ${R} 0 0 --c-plan-ahead=0 --resync-rate=600M ; done
+
+33- Generar la relacion de confianza entre servidores (del a al b y del b al a) 
+
+drbdadm status
+
+# Parar keeaplive en el b y disable keepalive asi termina de sincronizar, ESPERAR A QUE TERMINE PARA SEGUIR) - Un dia
+[root@server43b ~] # systemctl stop keepalive.service
+[root@server43b ~] # systemctl disable keepalived.service
+
+---------------------------------------------------
+
+34- Verificar que no haya salidas erroneas
+
+systemctl list-units | sort | grep -w failed
+
+systemctl start quotaon.service
+systemctl status quotaon.service
+
+lsof /dev/mapper/mail
+lsof /dev/mapper/VG2
+lsof /dev/mapper/VG2-home
+
+
+Verificar el socat con la IP de mysql
+systemctl status socat.service -l
+
+wordfence configure --overwrite --default --request-license --accept-terms --workers 3
+echo "match_engine=vectorscan" >> /root/.config/wordfence/wordfence-cli.ini
+
+35- Cambiar permisos - (Solo en primario)
+
+chown root:soporte2 /home/
+chmod 0751 /home/
+
+36- Ejecutar script proxysql - (En ambos)
+
+Copiamos desde el 273
+scp remote_sync xxx.xx.xx.xx:/root/
+bash /proxysql_installation_Diego.sh
+
+systemctl disable proxysql
+
+37- En ambos servidores
+
+systemctl mask flashcache.service
+systemctl stop flashcache.service
+
+
+38 - Deshabilitar Flashcache  - (Solo en primario)
+
+Cambios a aplicar en FSTAB
+mcedit /etc/fstab
+
+/dev/mapper/VG3-mail  /Mails            ext4   defaults,noauto,noatime,usrjquota=aquota.user,jqfmt=vfsv0                                       0 0
+
+
+editar mcedit /root/servicios.sh y agregar las siguientes lineas o copiarlo desde mipc>Desktop>Files>Documentacion>Alta Compartidos Scripts
+
+# Montar los volúmenes necesarios
+    echo "$(date "+%F %H:%M:%S") ${MYNAMEIS} ${0}[$$]: INFO: Montando /Mails"
+    exec_cmd "mount /Mails"
+    echo "$(date "+%F %H:%M:%S") ${MYNAMEIS} ${0}[$$]: INFO: Montando particiones compartidas"
+
+# Desmontar los volúmenes necesarios
+    echo "$(date "+%F %H:%M:%S") ${MYNAMEIS} ${0}[$$]: INFO: Desmontando /Mails"
+    exec_cmd "umount /Mails"
+
+
+O copiarlo del server74
+
+39- Instalar certbot y configurar wordfence - (En ambos)
+
+yum install certbot.noarch -y
+wordfence configure --overwrite --default --request-license --accept-terms --workers 3
+echo "match_engine=vectorscan" >> /root/.config/wordfence/wordfence-cli.ini
+
+40 - Probar replicacion
+
+systemctl restart keepalavied     en el a
+tail -f /var/log/servicios.log    en el b
+
+
+41- Alta en sistema back
+
+En otra pestania de back buscar
+
+42- Test desde panel3
+
+Si el test falla por autenticacion revisar 
+cat /opt/panel/etc/passwd-dhm 
+
+
+tirar el siguiente comando tal cual cambiandole el servidor:
+
+/opt/panel3/bin/newtestearservervirtual server74
+Copiar la salida a un a.txt
+
+Luego reiniciar el keepalive en el primario asi el otro toma la posta y volver a ejecutar
+
+/opt/panel3/bin/newtestearservervirtual server74
+Copiar la salida a un b.txt
+
+43- Agregar al monitoreo
+
+ssh horus01
+cd /mnt/horus-data/scripts/general/generador/
+ 
+# Ejecutamos segun corresponda el tipo de servidor
+# OPCION: -c (Con flashcache) -s (Sin flashcache)
+ 
+./agregar-compartido-apache.sh [SERVIDOR] [OPCION]
+o
+./agregar-compartido-litespeed.sh [SERVIDOR] [OPCION]
+ 
+# Luego recargamos la configuracion de horus para que se carguen los cambios
+run-in-instance general /check-config | grep -ie Error
+run-in-instance general /reload-config
+
+Consideraciones 
+
+--------------------------------------
+
+Si lan0 o lan1 estan DOWN avisar a soporte
+
+Chequear la lan1 del server74a y server74b es un server compartido nuevo todavía no esta en producción pero no tienen link ambas lan1
+Si hay un delay y tarda, fijarse si los cables de la wan estan mal conectados, pedirle a soporte que revise
+
+Si la replicacion tarda por ejemplo 1MBxS, bajar lan1 en a y en b para que replique bien
+
+iplink down lan1
+reboot
+
+Los unicos servicos que tienen que quedar como enabled son drbd y keepalived
+--------------------------------------
+
+sudo systemctl stop wazuh-agent
+sudo yum remove wazuh-agent -y
+
+sudo rm -rf /var/ossec
+sudo rm -rf /var/wazuh
+
+sudo systemctl daemon-reload
+
+
+Instalar en el A: 1ero IMUNIFY y despues wazuh. Pasar los servicios al b (con imunify ya instalado) , e instalar wazuh 
+
+pero siempre con esta
+WAZUH_AGENT_NAME="$(hostname -s)" WAZUH_AGENT_GROUP="CompartidosLinux" WAZUH_MANAGER="xxx.xx.xx.xx" yum -y install https://panel.net/ciberseguridad/wazuh/wazuh-agent-4.12.0-1.x86_64.rpm
+
+Instalar wazuh
+
+
+## NOTA: Setear el o los grupos en WAZUH_AGENT_GROUP
+ 
+rpm --import https://packages.wazuh.com/key/GPG-KEY-WAZUH
+ 
+cat > /etc/yum.repos.d/wazuh.repo << EOF
+[wazuh]
+gpgcheck=1
+gpgkey=https://packages.wazuh.com/key/GPG-KEY-WAZUH
+enabled=0
+name=EL-\$releasever - Wazuh
+baseurl=https://packages.wazuh.com/4.x/yum/
+protect=1
+EOF
+ 
+WAZUH_AGENT_NAME="$(hostname -s)" WAZUH_AGENT_GROUP="servidores" WAZUH_MANAGER="xxx.xx.xx.xx" yum -y install https://panel.net/ciberseguridad/wazuh/wazuh-agent-4.10.1-1.x86_64.rpm
+ 
+systemctl enable --now wazuh-agent
+tail -F /var/ossec/logs/ossec.log
+
+
+
+----------------------------------------------------------------------------
+
+Si fallan los chequeos de panel en crear usuario ldap
+
+[root@ldap ~] # /scripts/crea_nube_en_people_and_groups.sh
+
+MODO DE USO: /scripts/crea_nube_en_people_and_groups.sh NUBE
+
+[root@ldap ~] # /scripts/crea_nube_en_people_and_groups.sh laba300
+
+Creo la OU laba300 dentro de people y groups en la base de datos de ldap
+adding new entry "ou=laba300,ou=groups,dc=linux,dc=backend"
+
+adding new entry "ou=laba300,ou=people,dc=linux,dc=backend"
+
+----------------------------------------------------------------------------
+
+
+Error en el alta, bas ede datos compartido mysql panel 
+
+# Al utilizar autenticacion por mysql debemos dar de alta la base de datos del compartido (servidorX) en mysqlfz00 (panel Centralizado)
+# Usamos como ejemplo servidor1, remplazar por el real.
+mysql -e "CREATE DATABASE servidor1";
+ 
+# Luego de entrar en mysqlfz00 verificar primero que exista el archivo /root/plantilla-comp.sql
+mysql servidor1 < /root/plantilla-comp.sql
+ 
+# Luego darle permisos:
+mysql -e "GRANT SELECT, INSERT, UPDATE, DELETE ON servidor1.* TO 'panel'@'xxx.xx.xx.xx';"
+mysql -e "GRANT SELECT ON servidor1.* TO 'services'@'xxx.xx.xx.xx';"
+mysql -e "GRANT SELECT ON servidor1.* TO 'proxyuser'@'xxx.xx.xx.xx';"
+ 
+########
+
+
+-----------------------------------------
+🔹 Conflictos de particiones en drbd, ya sea que hay un nvme en alta de compartidos o simplemente no esten ordenadas
+
+cat /etc/drbd.d/particion.res
+ 
+ls -l /dev/disk/by-id/
+cat /etc/drbd.d/particion.res | grep /dev/disk
+ 
+Si es un nvme nuevo, volver a ejecutar
+
+parted.sh
+configura-lvm-a.sh
+
+Reiniciar y seguir con todos en primario
+-----------------------------------------
+cat parted.sh 
+
+
+parted --script -a optimal /dev/nvme0n1 mklabel msdos
+parted --script -a optimal /dev/nvme1n1 mklabel msdos
+parted --script -a optimal /dev/sdb mklabel msdos
+parted --script -a optimal /dev/sdc mklabel msdos
+parted --script -a optimal /dev/sdd mklabel msdos
+parted --script -a optimal /dev/nvme0n1 mkpart primary 0% 995G
+parted --script -a optimal /dev/nvme1n1 mkpart primary 0% 995G
+parted --script -a optimal /dev/sdb mkpart primary 0% 995G
+parted --script -a optimal /dev/sdc mkpart primary 0% 995G
+parted --script -a optimal /dev/sdd mkpart primary 0% 995G
+
+# Edito los archivos /etc/drbd.d/*.res y flasjcache con los IDs correctos
+bash /root/alta_comaprtido_disk_by_id.sh
+
+rm -f /root/parted.sh /root/alta_comaprtido_disk_by_id.sh
+
+
+
+sed -i 's/sdb/nvmen0n1/g' alta_comaprtido_disk_by_id.sh
+sed -i 's/sdc/nvmen1n1/g' alta_comaprtido_disk_by_id.sh
+
+(g es para cambiar TODAS las lineas con sde, sin g hace la primera)
+
+----------------------------------------------
+Cambios para disco NVME nvme M2 m2 en la particion de nuevos compartidos linux
+----------------------------------------------
+
+cat /root/alta_comaprtido_disk_by_id.sh
+
+#!/bin/bash
+
+
+sleep 90
+
+particion=$(ls -l /dev/disk/by-id/ | grep nvme0n1p1 | head -1 | awk '{print $9}')
+particion=$(ls -l /dev/disk/by-id/ | grep nvme1n1p1 | head -1 | awk '{print $9}')
+particion=$(ls -l /dev/disk/by-id/ | grep sda1 | head -1 | awk '{print $9}')
+particion=$(ls -l /dev/disk/by-id/ | grep sdb1 | head -1 | awk '{print $9}')
+particion=$(ls -l /dev/disk/by-id/ | grep sdserver | head -1 | awk '{print $9}')
+flashcache=$(ls -l /dev/disk/by-id/ | grep part6 | head -1 | awk '{print $9}')
+
+
+sed -i -e "s#ata-KING.ID-part1#${particion}#g" /etc/drbd.d/particion.res
+sed -i -e "s#ata-KING.ID-part1#${particion}#g" /etc/drbd.d/particion.res
+sed -i -e "s#ata-KING.ID--WCC6Y4CY0TC3-part1#${particion}#g" /etc/drbd.d/particion.res
+sed -i -e "s#ata-ID-WCC6Y1XPDPJU-part1#${particion}#g" /etc/drbd.d/particion.res
+sed -i -e "s#ata-WDC_WD10EZEX-08WN4server_WD-WCC6Y3VV2DV0-part1#${particion}#g" /etc/drbd.d/particion.res
+sed -i -e "s#ata--part6#${flashcache}#g" /etc/flashcache.cfg
+
+
+# Chequeo que se haya editado:
+grep -q  $particion /etc/drbd.d/particion.res
+if [ $? = 0 ] ; then
+        echo "particion - OK"
+fi
+grep -q  $particion /etc/drbd.d/particion.res
+if [ $? = 0 ] ; then
+        echo "particion - OK"
+fi
+grep -q  $particion /etc/drbd.d/particion.res
+if [ $? = 0 ] ; then
+        echo "particion - OK"
+fi
+grep -q  $particion /etc/drbd.d/particion.res
+if [ $? = 0 ] ; then
+        echo "particion - OK"
+fi
+grep -q  $particion /etc/drbd.d/particion.res
+if [ $? = 0 ] ; then
+        echo "particion - OK"
+fi
+grep -q  $flashcache /etc/flashcache.cfg
+if [ $? = 0 ] ; then
+        echo "particion - OK"
+fi
+
+--------------------------------------------------------------------------------------------
+
+En el  (es nuevo) faltaba la llave de compartidos y el script /root/allowed-commands.sh para las restricciones de acceso.
+wazuh estaba instalado con un hostname incorrecto en server07a, ahi reinstale y pedi a ricky que borre el viejo manualmente
+Le borre el kernel viejo en ambos nodos
+Agregue las IPs de server07b en backo que faltaban
+
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

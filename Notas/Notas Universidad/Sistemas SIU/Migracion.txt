@@ -1,0 +1,492 @@
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+Migacion completa: ✓✓✓✓✓✓✓✓✓✓✓✓✓
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+NFS esta bien de espacio
+
+1- Detener servicios en test- ✓
+systemctl stop postgres
+docker stop traefik
+./nuxeoctl stop 
+
+
+2- Sacar snapshot de test (test db - test nuxeo - test nfs - test manager1 ) -  ✓
+
+3- Borrar carpetas - ✓
+  
+ cd /var/lib/nuxeo 
+ rm -rf data
+
+ cd /vol (no me fije los permisos del nfs)
+ rm -rf *
+
+4- Backup DB y Copiar NUXEO  - ✓
+   
+   a- pg_dump -h localhost -U postgres -p 5432 nuxeo > nuxeo_30_07_24.sql
+		2LsAsZoiaznuSrCBTI6a
+   b- scp -p nuxeo_29_02_24.sql  root@xxx.xxx.xxx.x:/tmp/
+   c- scp -rp data/  root@xxx.xxx.xxx.x:/tmp
+   d- mv data /var/lib/nuxeo 
+
+
+
+5- Copiar NFS - ✓
+
+   a- scp -rp arai root@xx:/home
+   b- scp -rp ldap root@xx:/home
+   c- scp -rp sudocu-files root@xx:/home
+   d- mv sudocu-files /vol
+   
+   
+   
+6- Backup DB y Copiar DB-  ✓ 
+
+   pg_dump -h localhost -U postgres -p 5432 arai_documentos2 > arai_documentos_30_07_24.sql
+   pg_dump -h localhost -U postgres -p 5432 usuarios > usuarios_30_07_24.sql
+   pg_dump -h localhost -U postgres -p 5432 sudocu > sudocu_30_07_24.sql
+   pg_dump -h localhost -U postgres -p 5432 arai_personas > arai_personas_30_07_24.sql
+		
+   
+   scp -p arai_documentos02_29_02_24.sql root@IP:/home
+   scp -p usuarios02_29_02_24.sql root@IP:/home
+   scp -p sudocu_29_02_24.sql root@IP:/home
+	personas
+   
+   
+7- Cargar bases de datos NUXEO-  ✓
+
+	su - postgres
+	psql
+	bodoque.123
+	drop database nuxeo
+	create database nuxeo
+	\l
+    \q
+    exit
+    psql -d nuxeo -h localhost -U postgres < nuxeo_29_02_24.sql
+   
+   
+8- Cargar bases de datos DB -  ✓
+
+	su - postgres
+	psql
+	drop database usuarios;
+    drop database sudocu;
+	drop database arai_documentos2;
+	drop database arai_personas;
+	\l
+	create database usuarios;
+	create database sudocu;
+	create database arai_documentos2;
+	create database arai_personas;
+	
+	Cargar las bases:
+	psql -d usuarios -h localhost -U postgres < usuarios_29_02_24.sql
+	psql -d arai_documentos2 -h localhost -U postgres < arai_documentos2_29_02_24.sql
+	psql -d sudocu -h localhost -U postgres < sudocu_29_02_24.sql
+	psql -d arai_personas -h localhost -U postgres < arai_personas_29_02_24.sql
+
+
+Crear el esqyuema sudocu
+create user sudocu SUPERUSER CREATEDB CREATEROLE;
+CREATE ROLE
+SELECT * FROM pg_user;
+GRANT ALL PRIVILEGES ON DATABASE sudocu TO sudocu ;
+	
+
+9- Modificar URL al importar de produccion		USUARIOS.APLICACIONES
+
+=======================
+
+USUARIOS:
+update usuarios.aplicaciones set url= 'https://test-univ.universidad.edu.ar/usuarios' where app_unique_id = 'idm-core'
+
+HUARPE:
+update usuarios.aplicaciones set url= 'https://test-univ.universidad.edu.ar/' where app_unique_id = ''
+
+SUDOCU:
+update usuarios.aplicaciones set url= 'https://test-univ.universidad.edu.ar/sudocu' where app_unique_id = ''
+
+=======================
+Modificar URL al importar de produccion		USUARIOS.CONECTOR_SAML
+=======================
+
+USUARIOS:
+update usuarios.conector_saml set metadata_key= 'https://test-univ.universidad.edu.ar/usuarios/default-sp' where app_unique_id = 'idm-core'
+
+HUARPE:
+update usuarios.conector_saml set metadata_key= 'https://test-univ.universidad.edu.ar/saml/metadata' where app_unique_id = ''
+
+SUDOCU:
+update usuarios.conector_saml set metadata_key= 'https://test-univ.universidad.edu.ar/sudocu' where app_unique_id = ''
+
+Modificar manualmente en la tabla usuarios.conector_saml el campo config_sp, ya que es tipo JSON
+Reemplazar las url "https://univ.universidad.edu.ar" por "https://test-univ.universidad.edu.ar"
+
+
+UPDATE sudocu.documentos
+SET nro = jsonb_set(nro, '{organismo}', '"UUNN"', false)
+WHERE nro ->> 'organismo' = 'universidad';
+
+
+Ingresar al servidor de nuxeo y ejecutar: 
+./nuxeoctl restart
+
+10- apt-get update && apt upgrade -y
+	reiniciar todos los servidores y los workers
+	
+	
+10.5 - Editar los archivos segun las versiones a actualizar, los limites ya estan comentados en los .yml
+
+10.7 - docker system prune (cuando este todo levantado)
+
+-----------------------------------
+
+11-	=======================
+	Agregar aplicaciones TOBA
+	=======================
+
+    Entrar al univ y borrar el Wemes que se importo de produccion 
+
+	WEMES CAPACITACION:
+	insert into usuarios.aplicaciones
+	(app_unique_id, url, etiqueta, version, descripcion, filtrar_grupos, lista_grupos, orden, inactiva, en_registry, permite_acceso_sin_cuenta, ocultar_menu, created_at, requiere_second_factor)
+	values
+	('id', ' https://toba3-dev.universidad.edu.ar/weme_test/3.0', 'Weme Capacitacion', '2.2.3', 'ME Test 2', 0, null, null, 0, 0, false, false, '2022-11-05 14:29:08.64962', 'false')
+
+	/*delete from usuarios.aplicaciones where app_unique_id = '';*/
+
+	Ingresar al univ y agregar en las aplicaciones los items correspondientes en la pestaña SAML y agregar por ejemplo:
+	
+	test-weme.universidad.edu.ar
+	
+	https://test-univ.universidad.edu.ar/usuarios/default-sp
+	https://test-univ.universidad.edu.ar/usuarios/?acs
+	https://test-univ.universidad.edu.ar/usuarios/?sls
+	
+	
+	--- Los usuarios NO se pisan --
+	
+	
+	
+WEMES
+
+	En el servidor wemes:
+
+##	modificar archivo saml_onelogin.ini para que apunte al nuevo dominio
+##	modificar el archivo idp.crt con el certificado del nuevo dominio
+##	modificar el archivo cliente.ini para que apunte al nuevo dominio
+
+	------------------------
+
+	Realiza backup de la base de datos wemes produccion toba_3.0_wemes:
+
+	pg_dump -h localhost -U postgres -p 5432 general > general.sql
+	pg_dump -h localhost -U postgres -p 5432 melotus > melotus.sql
+
+
+	Exportar los siguientes schema de la base toba_3_0_wemes:
+		dos
+		mesa_dai
+		public
+		public_auditoria
+		referencia
+
+	pg_dump -h <host> -p <port> -U <user> <database> -n <schema> > <output>
+
+	pg_dump -h localhost -p 5432 -U postgres toba_3_0_wemes -n dos > esquema_dos_toba_3_0_wemes.sql
+	pg_dump -h localhost -p 5432 -U postgres toba_3_0_wemes -n mesa_dai > esquema_mesa_dai_toba_3_0_wemes.sql
+	pg_dump -h localhost -p 5432 -U postgres toba_3_0_wemes -n public > esquema_public_toba_3_0_wemes.sql
+	pg_dump -h localhost -p 5432 -U postgres toba_3_0_wemes -n public_auditoria > esquema_public_auditoria_toba_3_0_wemes.sql
+	pg_dump -h localhost -p 5432 -U postgres toba_3_0_wemes -n referencia > esquema_referencia_toba_3_0_wemes.sql
+
+
+	pg_dump -h localhost -p 5432 -U postgres toba_3_2_wemesexterno -n public > esquema_public_toba_3_2_wemesexterno.sql
+	pg_dump -h localhost -p 5432 -U postgres toba_3_2_wemesexterno -n referencia > referencia_toba_3_2_wemesexterno.sql
+ 
+	tar -czvf bases.tar.gz general.sql melotus.sql esquema_dos.sql esquema_mesa_dai.sql esquema_public.sql esquema_public_auditoria.sql
+
+	Mover las bases de wemes produccion a wemes test:
+
+	scp bases.tar.gz universidadingreso@xxx.xxx.xxx.x:/tmp
+
+	tar -zxvf bases.tar.gz
+
+	Cambiar los permisos:
+	chown sistematoba:sistematoba bases.tar.gz general.sql melotus.sql esquema_dos.sql esquema_mesa_dai.sql esquema_public.sql esquema_public_auditoria.sql referencia.sql
+
+	Ingresar al servidor de nuxeo y ejecutar: 
+	./nuxeoctl restart
+	
+
+	
+------------------------
+Pasos para migrar datos:
+------------------------
+
+MIGRAR DE PRODUCCION A TEST
+
+Realizar un backup de las 3 bases de datos:
+
+pg_dump -h localhost -U postgres -p 5432 arai_documentos2 > arai_documentos02_03_11_22.sql
+pg_dump -h localhost -U postgres -p 5432 usuarios > usuarios02_03_11_22.sql
+pg_dump -h localhost -U postgres -p 5432 sudocu > sudocu02_03_11_22.sql
+
+Realizar backup de la base nuxeo y la carpeta data:
+cd /var/lib/nuxeo/
+pg_dump -h localhost -U postgres -p 5432 nuxeo > nuxeo_03_11_22.sql
+tar -czf data.tar.gz data/
+
+Realizar un backup de /mnt (arai,ldap,sudocufiles)  NFS :
+tar -czf ldap_arai_sf_.tar.gz arai/ ldap/ sudocu-files/
+
+Mover los archivos  data.tar.gz y nuxeo_03_11_22.sql a la base de nuxeo test:
+scp -p data.tar.gz  root@xxx.xxx.xxx.x:/tmp/
+scp -p nuxeo_03_11_22.sql  root@xxx.xxx.xxx.x:/tmp/
+
+Mover los archivos de la carpeta ldap_arai_sfiles.tar.gz y las bases a test:
+scp -p arai_documentos02_03_11_22.sql root@xxx.xxx.xxx.x:/tmp
+scp -p usuarios02_03_11_22.sql root@xxx.xxx.xxx.x:/tmp
+scp -p sudocu02_03_11_22.sql root@xxx.xxx.xxx.x:/tmp
+scp -p  ldap_arai_sf.tar.gz  root@xxx.xxx.xxx.x:/tmp
+
+Realizar un backup de la carpeta data vieja en nuxeo test:
+tar -czf data_old.tar.gz data/
+
+----------------------------------------------------------------
+
+Reemplazar la carpeta data vieja en el nuxeo por la nueva : 
+
+cd /srv/nuxeo/bin/
+
+./nuxeoctl stop
+
+cd /var/lib/nuxeo
+rm -r data
+tar -zxvf data.tar.gz
+
+Reemplazar la base de datos en nuxeo:
+su - postgres
+psql
+show databases
+drop database nuxeo
+create database nuxeo
+\q
+exit
+psql -d nuxeo -h localhost -U postgres < nuxeo_03_11_22.sql
+
+Descomprimir la carpeta data:
+tar -zxvf data.tar.gz
+
+SI EL PROCESO NO FUNCIONA, REALIZARLO DE NUEVO
+
+------------------------
+
+Remover los stacks de test:
+
+docker stack rm docs sudocu huarpe usuarios ldap
+
+Borrar y crear las bases de datos de test-db:
+su - postgres
+psql
+\l
+drop database usuarios;
+drop database sudocu;
+drop database arai_documentos2;
+create database usuarios;
+create database sudocu;
+create database arai_documentos2;
+
+Cargar las bases:
+psql -d usuarios -h localhost -U postgres < usuarios_03_11_22.sql
+psql -d arai_documentos2 -h localhost -U postgres < arai_documentos2_03_11_22.sql
+psql -d sudocu -h localhost -U postgres < sudocu_03_11_22.sql
+   
+Realizar un backup de las carpetas viejas arai, ldap, sudocu-files:   
+tar -czf ldap_arai_sf_old.tar.gz arai/ ldap/ sudocu-files/  
+ 
+Descomprimirla carpeta ldap_arai_sf.tar.gz :
+tar -zxvf ldap_arai_sf.tar.gz
+
+Levantar los stacks:
+docker stack deploy --with-registry-auth -c usuarios.yml usuarios
+
+Modificar la url en la base de datos:
+usuarios.aplicaciones
+usuarios.conector_saml
+
+ULR de wemes test: toba3-dev.universidad.edu.ar
+
+Ejecutando las consultas que se encuentran debajo de este archivo
+------------------------
+
+En el servidor wemes:
+
+modificar archivo saml_onelogin.ini para que apunte al nuevo dominio
+modificar el archivo idp.crt con el certificado del nuevo dominio
+modificar el archivo cliente.ini para que apunte al nuevo dominio
+
+------------------------
+
+Realiza backup de la base de datos wemes produccion toba_3.0_wemes:
+
+pg_dump -h localhost -U postgres -p 5432 general > general.sql
+pg_dump -h localhost -U postgres -p 5432 melotus > melotus.sql
+
+Exportar los siguientes schema de la base toba_3_0_wemes:
+    dos
+    mesa_dai
+    public
+    public_auditoria
+	referencia
+
+pg_dump -h <host> -p <port> -U <user> <database> -n <schema> > <output>
+
+pg_dump -h localhost -p 5432 -U postgres toba_3_0_wemes -n dos > esquema_dos_toba_3_0_wemes.sql
+pg_dump -h localhost -p 5432 -U postgres toba_3_0_wemes -n mesa_dai > esquema_mesa_dai_toba_3_0_wemes.sql
+pg_dump -h localhost -p 5432 -U postgres toba_3_0_wemes -n public > esquema_public_toba_3_0_wemes.sql
+pg_dump -h localhost -p 5432 -U postgres toba_3_0_wemes -n public_auditoria > esquema_public_auditoria_toba_3_0_wemes.sql
+pg_dump -h localhost -p 5432 -U postgres toba_3_0_wemes -n referencia > esquema_referencia_toba_3_0_wemes.sql
+
+pg_dump -h localhost -p 5432 -U postgres toba_3_2_wemesexterno -n public > esquema_public_toba_3_2_wemesexterno.sql
+pg_dump -h localhost -p 5432 -U postgres toba_3_2_wemesexterno -n referencia > referencia_toba_3_2_wemesexterno.sql
+ 
+tar -czvf bases.tar.gz general.sql melotus.sql esquema_dos.sql esquema_mesa_dai.sql esquema_public.sql esquema_public_auditoria.sql
+
+Mover las bases de wemes produccion a wemes test:
+
+scp bases.tar.gz universidadingreso@xxx.xxx.xxx.x:/tmp
+
+tar -zxvf bases.tar.gz
+
+Cambiar los permisos:
+chown sistematoba:sistematoba bases.tar.gz general.sql melotus.sql esquema_dos.sql esquema_mesa_dai.sql esquema_public.sql esquema_public_auditoria.sql referencia.sql
+
+Ingresar al servidor de nuxeo y ejecutar: 
+./nuxeoctl restart
+
+--------------------------------------------------
+
+Consideraciones al momento de migrar SUDOCU-ARAI :
+
+--------------------------------------------------
+
+1- No ejecutar en bases de datos para produccion
+
+UPDATE sudocu.documentos
+SET nro = jsonb_set(nro, '{organismo}', '"universidad"', false)
+WHERE nro ->> 'organismo' = 'UUNN';
+
+--------------------------------------------------
+
+2- 
+
+Cambiar la hora en la base de datos:
+
+1) Entrar a psql
+
+su - postgres 
+psql
+
+2) Mostrar la fecha
+
+select now();
+2022-02-18 11:08:50.727759-05;
+
+3) Listar las timezones
+
+select * from pg_timezone_names ; 
+America/Argentina/Buenos_Aires
+
+4) Ejecutar en las distintas databases
+
+\l 
+
+set timezone='America/Argentina/Buenos_Aires';
+ALTER DATABASE sudocu SET timezone TO 'America/Argentina/Buenos_Aires';
+ALTER DATABASE usuarios SET timezone TO 'America/Argentina/Buenos_Aires';
+ALTER DATABASE arai_documentos2 SET timezone TO 'America/Argentina/Buenos_Aires';
+ALTER DATABASE postgres SET timezone TO 'America/Argentina/Buenos_Aires';
+ALTER DATABASE template0 SET timezone TO 'America/Argentina/Buenos_Aires';
+ALTER DATABASE template1 SET timezone TO 'America/Argentina/Buenos_Aires';
+ALTER DATABASE nuxeo SET timezone TO 'America/Argentina/Buenos_Aires';
+--------------------------------------------------
+
+3-
+
+Cambiar la base de datos sudocu de version
+
+docker run --rm \
+  --env SUDOCU_DB_HOST=xxx.xxx.xxx.x \
+  --env SUDOCU_DB_NAME=sudocu \
+  --env SUDOCU_DB_PORT=5432 \
+  --env SUDOCU_DB_USER=postgres \
+  --env SUDOCU_DB_PASSWORD=pass \
+  ungs/sudocu-db-instalador:1.3.12
+  
+  
+--------------------------------------------------
+
+Consultas
+
+--------------------------------------------------
+
+=======================
+Agregar aplicacion		USUARIOS.APLICACIONES
+=======================
+
+WEMES 3.3:
+insert into usuarios.aplicaciones
+(app_unique_id, url, etiqueta, version, descripcion, filtrar_grupos, lista_grupos, orden, inactiva, en_registry, permite_acceso_sin_cuenta, ocultar_menu, created_at, requiere_second_factor)
+values
+('universidad-Wemes_1.universidad-Wemes', 'https://test-weme.universidad.edu.ar/weme/3.3/', 'Wemes3.3', '3.3', 'wemes3.3', 0, null, null, 0, 0, false, false, '2022-11-04 14:30:57.605335', 'false')
+
+
+WEMES CAPACITACION:
+insert into usuarios.aplicaciones
+(app_unique_id, url, etiqueta, version, descripcion, filtrar_grupos, lista_grupos, orden, inactiva, en_registry, permite_acceso_sin_cuenta, ocultar_menu, created_at, requiere_second_factor)
+values
+('_a01c96ea31d0a28bca546a095194f4470bd1dcaf67', ' https://toba3-dev.universidad.edu.ar/weme_test/3.0', 'Weme Capacitacion', '2.2.3', 'ME Test 2', 0, null, null, 0, 0, false, false, '2022-11-05 14:29:08.64962', 'false')
+
+/*delete from usuarios.aplicaciones where app_unique_id = '';*/
+
+Ingresar al univ y agregar en las aplicaciones los items correspondientes en la pestaña SAML
+
+=======================
+Modificar URL al importar de produccion		USUARIOS.APLICACIONES
+=======================
+
+USUARIOS:
+update usuarios.aplicaciones set url= 'https://test-univ.universidad.edu.ar/usuarios' where app_unique_id = 'idm-core'
+
+HUARPE:
+update usuarios.aplicaciones set url= 'https://test-univ.universidad.edu.ar/' where app_unique_id = 'AAA'
+
+SUDOCU:
+update usuarios.aplicaciones set url= 'https://test-univ.universidad.edu.ar/sudocu' where app_unique_id = 'AAA'
+
+=======================
+Modificar URL al importar de produccion		USUARIOS.CONECTOR_SAML
+=======================
+
+USUARIOS:
+update usuarios.conector_saml set metadata_key= 'https://test-univ.universidad.edu.ar/usuarios/default-sp' where app_unique_id = 'idm-core'
+
+HUARPE:
+update usuarios.conector_saml set metadata_key= 'https://test-univ.universidad.edu.ar/saml/metadata' where app_unique_id = 'AAA'
+
+SUDOCU:
+update usuarios.conector_saml set metadata_key= 'https://test-univ.universidad.edu.ar/sudocu' where app_unique_id = 'AAA'
+
+
+Modificar manualmente en la tabla usuarios.conector_saml el campo config_sp, ya que es tipo JSON
+Reemplazar las url "https://univ.universidad.edu.ar" por "https://test-univ.universidad.edu.ar"
+Mosidifique tambien toba-3-prod por toba-3-dev (que es test)
+
+
+Ingresar al servidor de nuxeo y ejecutar: 
+./nuxeoctl restart
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+

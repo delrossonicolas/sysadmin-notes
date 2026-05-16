@@ -1,0 +1,403 @@
+----------------------------------------------------
+Alta servidor Directus
+----------------------------------------------------
+
+Crear un usuario y asignarle permisos en distintos aplicativos
+
+useradd -m -s /bin/bash cloud
+useradd -m -s /bin/bash cloudadmin
+
+------------------------------
+
+Directus sudoers
+
+chmod 0440 /etc/sudoers.d/directus
+mcedit /etc/sudoers.d/directus
+
+------------------------------
+
+directus ALL=(ALL) NOPASSWD: /usr/bin/docker
+directus ALL=(ALL) NOPASSWD: /usr/bin/node
+directus ALL=(ALL) NOPASSWD: /usr/bin/npm
+directus ALL=(ALL) NOPASSWD: /usr/bin/yarn
+directus ALL=(ALL) NOPASSWD: /usr/sbin/nginx -t
+directus ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload nginx.service, /usr/bin/systemctl reload nginx
+directus ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart nginx.service, /usr/bin/systemctl restart nginx
+directus ALL=(ALL) NOPASSWD: sudoedit /etc/nginx/*
+
+chmod 0440 /etc/sudoers.d/directus
+visudo -c
+
+-----------------------------------------
+Borrar Eliminar Usuario
+
+sudo userdel nombre_usuario
+sudo userdel -r nombre_usuario
+
+------------------------------
+
+Levantar una aplicacion simple en pm2 node
+
+mkdir -p ~/mi-app && cd ~/mi-app
+nano app.js
+
+----------
+const http = require('http');
+
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('¡Hola, mundo desde PM2!\n');
+});
+
+server.listen(3000, () => {
+    console.log('Servidor corriendo en http://localhost:3000');
+});
+----------
+
+pm2 start app.js --name mi-app
+
+pm2 list
+
+----------
+Crear usuario cloud base de datos direcuts directusbr
+----------
+CREATE USER IF NOT EXISTS cloud IDENTIFIED BY 'pass';
+CREATE DATABASE IF NOT EXISTS cloud CHARACTER SET utf8mb4;
+GRANT ALL PRIVILEGES  ON cloud.* TO 'cloud';
+
+CREATE USER IF NOT EXISTS cloudadmin IDENTIFIED BY 'pass';
+CREATE DATABASE IF NOT EXISTS cloudadmin CHARACTER SET utf8mb4;
+GRANT ALL PRIVILEGES  ON cloudadmin.* TO 'cloudadmin';
+
+------------------------------
+# Eliminar versiones antiguas de NodeSource si existen
+sudo rm -rf /etc/apt/sources.list.d/nodesource.list
+
+# Agregar el repositorio de Node.js 18
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo bash -
+
+# Instalar Node.js 18
+sudo apt-get install -y nodejs
+
+-----------------------------
+
+Entrar a la carpeta cloud o cloudadmin del sitio
+mkdir cloud
+cd cloud
+
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+nvm install v18.20.6
+nvm use v18.20.6
+
+npx directus@10.5.3 init
+Seleccionar MYsql
+Esperar que pida los datos
+
+npx directus@10.5.3 start
+ctrl+c para salir
+
+Ver que puerto esta disponible
+sudo netstat -tuln
+
+Editar puerto 8063 
+mcedit .env
+
+Editar el que corresponda en nginx
+
+cloudadmin.empresa.com.conf
+
+curl http://127.0.0.1:8062/admin
+curl http://127.0.0.1:8063/admin
+
+
+http://cloudadmin.empresa.com/
+
+
+http://cloud.empresa.com/
+
+
+Pusimos la version de directus 10.5.3 porque las posteriores pedian una libreria que no esta en centos 7
+
+-----------------------------
+
+Agregar llaves
+
+mkdir /home/cloudadmin/.ssh
+chmod 700 /home/cloudadmin/.ssh
+touch /home/cloudadmin/.ssh/authorized_keys
+chmod 644 /home/cloudadmin/.ssh/authorized_keys
+chown -R cloudadmin.cloudadmin /home/cloud/.ssh
+
+
+.Son servidores con drbd, si se desmonta la particion /home, se monta en el otro
+.El mysql esta sincronizado
+.Para levantar yo nunca use pm2 pero por lo que vi no es dificil
+pm2 start ./start-directus.sh --name directus-app
+.Para escalar es el siguiente comadno
+pm2 scale directus-app 3
+.Es http, no https
+
+------------------------------------------------------------------------------------------Fin instalacion Directus-------------------------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------Sitio web de envios-------------------------------------------------------------------------------------------------------------
+
+Crear el usuario para el sitio web de envia simple sitio simple
+
+useradd -m -s /bin/bash envios
+
+sudo passwd envios
+
+
+------------------------------
+
+mcedit /etc/sudoers.d/envios
+
+------------------------------
+
+envios sudoers
+
+envios ALL=(ALL) NOPASSWD: /usr/bin/docker
+envios ALL=(ALL) NOPASSWD: /usr/bin/node
+envios ALL=(ALL) NOPASSWD: /usr/bin/npm
+envios ALL=(ALL) NOPASSWD: /usr/bin/yarn
+envios ALL=(ALL) NOPASSWD: /usr/sbin/nginx -t
+envios ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload nginx.service, /usr/bin/systemctl reload nginx
+envios ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart nginx.service, /usr/bin/systemctl restart nginx
+envios ALL=(ALL) NOPASSWD: sudoedit /etc/nginx/*
+
+chmod 0440 /etc/sudoers.d/envios
+visudo -c
+
+-----------------------------------------
+
+mkdir -p /home/envios/public_html
+mkdir -p /home/envios/public_html/logs
+chown -R envios.envios /home/envios/public_html
+
+Agregar llaves
+
+mkdir /home/envios/.ssh
+chmod 700 /home/envios/.ssh
+touch /home/envios/.ssh/authorized_keys
+chmod 644 /home/envios/.ssh/authorized_keys
+chown -R envios.envios /home/envios/.ssh
+-----------------------------------------
+dominios 
+
+www.envios.empresa.com
+www.envios.com
+
+-----------------------------------------
+
+nginx -v
+nginx version: nginx/1.14.1
+pm2 -v
+5.4.3
+node -v
+v16.18.1
+
+-----------------------------------------
+
+Necesita:
+Docker
+MYsql
+nginx
+
+-----------------------------------------
+
+server {
+    listen 80;
+    server_name 192.168.1.100;
+
+    return 500 "Prueba de configuración activa";
+}
+
+-----------------------------------------
+
+rm -rf .cache .env extensions node_modules package-lock.json package.json start-directus.sh
+
+Borro lo de la carpeta /cloud/directus, la base de datos la dejo. Hago un backup en mi pc
+
+-----------------------------------------
+
+
+Usuario usuario1 Directus:
+
+adduser domaintool
+su - domaintool
+
+Instalar nvm (nvm solo instala el node en el directorio actual del usuario) :
+
+git clone https://github.com/nvm-sh/nvm.git ~/.nvm
+cd ~/.nvm
+git checkout `git describe --abbrev=0 --tags`
+
+echo 'export NVM_DIR="$HOME/.nvm"' >> ~/.bashrc
+echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> ~/.bashrc
+source ~/.bashrc
+
+nvm install 22.20.0
+
+nvm use 22
+nvm alias default 22
+
+npm install -g npm@10.9.3
+npm install -g pm2@6.0.13
+
+/etc/polkit-1/rules.d/50-allow-domaintool-manage-units.rules 
+
+
+-----------------------------------------
+Usuario usuario2 Directus:
+
+adduser performance_eval
+
+
+su - performance_eval
+
+Instalar nvm (nvm solo instala el node en el directorio actual del usuario) :
+
+git clone https://github.com/nvm-sh/nvm.git ~/.nvm
+cd ~/.nvm
+git checkout `git describe --abbrev=0 --tags`
+
+echo 'export NVM_DIR="$HOME/.nvm"' >> ~/.bashrc
+echo '[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"' >> ~/.bashrc
+source ~/.bashrc
+
+nvm install 22.21.1
+
+nvm use 22
+nvm alias default 22
+
+npm install -g npm@10.9.4
+npm install -g pm2@6.0.13
+
+/etc/polkit-1/rules.d/50-allow-domaintool-manage-units.rules 
+
+------------- Instalr ftpd ---------------------
+
+ 
+dnf install vsftpd
+systemctl enable --now vsftpd
+
+nano /etc/vsftpd/vsftpd.conf
+
+echo "performance_eval" > /etc/vsftpd/user_list
+
+iptables -I INPUT 3 -s xxx.xx.xx.xx/24 -p tcp --dport 21 -j ACCEPT
+iptables -I INPUT 4 -s xxx.xx.xx.xx/24 -p tcp --dport 40000:45000 -j ACCEPT
+iptables -I INPUT 3 -s xxx.xx.xx.xx/16 -p tcp --dport 21 -j ACCEPT
+iptables -I INPUT 4 -s xxx.xx.xx.xx/16 -p tcp --dport 40000:45000 -j ACCEPT
+
+22   ACCEPT     tcp  --  anywhere             anywhere             tcp dpts:safetynetp:asmp
+23   ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:ftp
+
+
+#  cat /etc/sysconfig/iptables
+
+
+systemctl restart vsftpd.service 
+
+
+
+------------- DB y usuario  ---------------------
+
+mysql -u root
+
+
+SELECT User, Host FROM mysql.user;
+SHOW DATABASES;
+
+CREATE USER 'performance_eval'@'localhost' IDENTIFIED BY 'pass';
+GRANT ALL PRIVILEGES ON performance_eval.* TO 'performance_eval'@'localhost';
+mysql -u performance_eval -p -h localhost
+
+ ------------------------------------------
+ 
+ Agregar disco de backup
+ 
+lsblk 
+lsblk /dev/sdb
+parted /dev/sdb --script   mklabel gpt   mkpart primary ext4 0% 100%
+mkfs.ext4 -L BACKUP /dev/sdb1
+lsblk
+mkdir -p /mnt/backup
+mount /dev/sdb1 /mnt/backup
+ 
+
+mkdir -p /mnt/backup/db
+mkdir -p /mnt/backup/datos
+
+blkid /dev/sdb1
+
+editar /etc/fstab 
+
+
+touch /mnt/backup/back.log
+umount /mnt/backup
+mount -a
+ 
+----------------------
+
+
+
+Levantar app Marketplace:
+
+su marketplace
+cd /home/marketplace
+npm run build
+pm2 start npm --name marketplace -- start
+pm2 save
+pm2 startup
+
+Para el rebuild:
+pm2 stop 1; sleep 3; npm run build; pm2 start 1
+
+
+
+su marketplace
+cd /home/marketplace
+npm run build
+pm2 start npm --name marketplace -- start
+pm2 save
+pm2 startup
+
+Para el rebuild:
+pm2 stop 1; sleep 3; npm run build; pm2 start 1
+
+
+
+Editar marketplace como servicio para que arranque marketplace.service
+
+Levantar app performance:
+su performance_eval
+cd /home/performance_eval/backend
+pm2 start ecosystem.config.js
+
+----------------------
+
+Arreglar error de replicacion:
+
+mysql -e "SHOW SLAVE STATUS\G"
+
+ 5010  2026-01-30 09:09:11 mysql -e "SHOW SLAVE STATUS\G"
+ 5011  2026-01-30 09:10:59 tail -n 200 /var/log/mysqld.log
+ 5012  2026-01-30 09:11:05 mysql -e "
+SELECT WORKER_ID, LAST_ERROR_NUMBER, LAST_ERROR_MESSAGE
+FROM performance_schema.replication_applier_status_by_worker
+WHERE LAST_ERROR_NUMBER <> 0\G"
+ 5013  2026-01-30 09:11:39 mysql -e "STOP SLAVE SQL_THREAD;"
+ 5014  2026-01-30 09:11:39 mysql -e "SET GLOBAL SQL_SLAVE_SKIP_COUNTER = 1;"
+ 5015  2026-01-30 09:11:39 mysql -e "START SLAVE SQL_THREAD;"
+ 5016  2026-01-30 09:11:44 mysql -e "SHOW SLAVE STATUS\G" | egrep "Slave_IO_Running|Slave_SQL_Running|Seconds_Behind_Master|Last_.*Error"
+ 5017  2026-01-30 09:12:46 clear
+ 5018  2026-01-30 09:12:47 mysql -e "SHOW SLAVE STATUS\G"
+ 
+ 
+
+ 
+ 
+ 
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

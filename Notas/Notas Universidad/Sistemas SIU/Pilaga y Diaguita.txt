@@ -1,0 +1,243 @@
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+PILAGA
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+1) systemctl stop apache2.service   ->		Bajamos el apache.
+2) systemctl stop postgresql		->		Bajamos la base.
+3) Creamos un snapshot en VMWare.
+3.1) systemctl start postgresql    ->		Levantamos el motor de la base
+4) cd /root/Instalado/Pilaga/		->		Nos dirigmos a la carpeta donde se encuentra el paquete del cambio (SIU-Pilaga_3.10.3.zip  vendor.zip)
+5) unzip vendor.zip					->		Descomprimimos ambos paquetes
+6) unzip SIU-Pilaga_3.10.3.zip		
+7) mv vendor/ SIU-Pilaga_3.10.3/		->		Movemos vendor/ a la carpeta SIU-Pilaga_3.10.3/
+8) mv SIU-Pilaga_3.10.3 pilaga_3103 	->		Cambiamos de nombre la carpeta SIU-Pilaga
+9) chown -R www-data:www-data pilaga_3103/ 		-> Damos permisos a usuario www-data
+10) systemctl stop jasper.service		->		Stopeamos jasper (sistema de correos)
+11) mv pilaga_3103/ /usr/local/siu/		->		Movemos la carpeta a /usr/local/siu/
+12) su - www-data		->		Ingresamos con usuario www-data
+13) cd /usr/local/siu/pilaga3103/		->		Nos dirigmos a la carpeta
+14)	cp ../pilaga3102/instalador.env .		->		Copiamos el enviroment de la version anterior a /usr/local/siu/pilaga3103/
+15) ./bin/instalador proyecto:actualizar --instalacion-anterior /usr/local/siu/pilaga3102		->		Corremos proyecto actualizar VERSION ANTERIOR 
+15) ./bin/instalador instalacion:modo-mantenimiento --sin-mantenimiento		->		Sacamos el proyecto modo mantenimiento
+16) dos2unix instalacion/toba.conf		->		Modificamos el formato del archivo
+17) vi instalacion/toba.conf		->		Modicamos en el archivo las rutas con la nueva version e ingresamos las ip que permite el acceso
+18) vi instalacion/i__produccion/instancia.ini		->		Dejamos url vacio y full_url = "https://test-pilaga.universidad.edu.ar" 
+19) exit		->		Salimos de usuario www-data
+20) ll /etc/init.d/jasper 		->		Verificamos que exista el link simbolico ( lrwxrwxrwx 1 root root 48 Jan 25 10:42 /etc/init.d/jasper -> /usr/local/siu/pilaga3103/bin/pilaga_reportes.sh* )
+21) rm /etc/init.d/jasper		->		Eliminamos el link simbolico
+22) ln -s /usr/local/siu/pilaga3103/bin/pilaga_reportes.sh /etc/init.d/jasper		->		Creamos el nuevo link simbolico con la nueva carpeta de la version
+23) ll /etc/init.d/jasper 		->		Verificamos que se haya creado de manera correcta
+24) vimdiff /usr/local/siu/pilaga3102/bin/pilaga_reportes.sh /usr/local/siu/pilaga3103/bin/pilaga_reportes.sh		->		Verificamos si hay modificaciones con la version anterior
+25) netstat -npl		->		Verificamos que el puerto 8081 No se este utilizando ya que es el que utiliza jasper
+26) chmod 755 /usr/local/siu/pilaga3120/bin/pilaga.sh	
+28) chmod +x /usr/local/siu/pilaga3120/bin/pilaga_reportes.sh
+29) chmod +x /usr/local/siu/pilaga3120/bin/toba_pilaga.sh
+29.1) vimdiff /usr/local/siu/pilaga3111/bin/toba_pilaga.sh /usr/local/siu/pilaga3120/bin/toba_pilaga.sh   ->	Carpetas de version
+30) systemctl start jasper.service		->		Levantamos jasper
+31) netstat -npl		->		Verificamos que el puerto 8081 se este utilizando con java ya que se levanto jasper
+32) vi /etc/apache2/sites-enabled/httpd-ssl.conf 		->		Modificamos el apache con la nueva carpeta pilaga3103/
+33) cp /root/Instalado/Pilaga/siu_universidad.gif /usr/local/siu/pilaga3120/www/img/		->		Copiamos la imagen que se encuentra en /root/Instalado/Pilaga/siu_universidad.gif
+34) systemctl start apache2.service 		->		iniciamos apache2.service
+
+		ANTES DE LIBERAR EL SISTEMA VERIFICAR LAS NOTAS
+34.1)	/root/Instalado/notas.txt
+34.2)	vi /usr/local/siu/pilaga3120/instalacion/i__produccion/p__pilaga/rest/servidor.ini
+34.3)	vi /etc/supervisor/conf.d/pilaga.conf
+34.5)	systemctl restart supervisor.service
+
+35)			----------------------------------- FIN DEL CAMBIO DE VERSION ----------------------------------------
+
+			-----------------------------------	ACTUALIZACION IMPORTACION DE PILAGA PRODUCCION A TEST - BASE DE DATOS - DATABASE - DESDE test -------------------------
+1)	su - postgres
+2)	cd Importador/
+3)	./menu.sh
+4)	2.- Importación desde Pilaga produccion
+5)	11:00		--> 	la fecha que se requiere
+6)	s	--> Para continuar
+7)	tarda como 15 minutos
+
+usuarioo usuario: 446
+
+-- SI EL PROCESO DA ERROR, REINICIAR EL POSTGRES EN TEST --
+
+----------------------------------------------- PARCHES	------------------------------------------------------------
+
+1) cd /root/tmp/		->		Nos dirigmos a la carpeta donde se encuentra el parche
+2) unzip parche_3.10.3_v1.zip 		->		Descomprimimos el parche
+3) cd parche_3.10.3_v1/		->		Ingresamos a la carpeta del parche		
+4) chown -R www-data:www-data parche_3.10.3_v1		->		Le damos permisos al usuario www-data sobre la carpeta y las sub
+5) mc 		->		Ingresamos a las carpetas y reemplazamos LOS ARCHIVOS, SOLO LOS ARCHIVOS que se encuentran en la misma
+
+---------------------------------------------------------------------------------------------------------------------
+
+Ejecutar Script :
+
+Conectarse a pilaga test en el PgAdmin y copiar y pegar el contenido de script.sql
+Ejecutarlo
+
+Si se valida, repetir el paso en produccion con el usuario usr_pilaga y la contraseña de bases.ini
+
+---------------------------------------------------------------------------------------------------------------------
+
+
+Tanto Diaguita como Pilaga manejan sesiones con redis, si hay errores en sesiones o en documentos que no aparecen en la bandeja de huarpe, bandeja a firmar revisar por aca
+
+systemctl restart supervisorctl redis
+
+--------------------------------------------------------------------
+
+reiniciar postgres pgbouncer
+
+--------------------------------------------------------------------
+
+
+idp.crt es igual a idp.crt en /usr/local/siu/certificados en DIAGUITA Y cat /opt/expedientes/prod/arai/certs/certificado_idp.crt en EEI
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+					=========================================================================
+												ACTUALIZAR DIAGUITA
+					=========================================================================
+1) En la carpeta /tmp/ descomprimir carpetas SIU Y vendor  -->  cd /tmp  7zr x SIU-Diaguita-3.2.0-Linux.7z y 7zr x vendor.7z
+2) meter carpeta ventdor dentro de carpeta siu  -->  mv vendor SIU-Diaguita-3.2.X 
+3) Renombramos carpeta SIU a diaguitaxxx(xxx dependiendo de la version siendo 3.2.1 --> 321)  -->  mv SIU-Diaguita-3.2.X a diaguita32x
+4) damos permisos a la carpeta diaguita --> chown -R www-data:www-data diaguita3.2.x
+5) movemos la carpeta diaguita32x a /usr/local/siu  -->  mv diaguita32x  /usr/local/siu
+6) usar usuario www-data  -->  su - www-data 
+7) ir a carpeta /usr/local/siu/diaguita32x(ultima version)  -->  cd /usr/local/siu/diaguita32x
+8) copiar de la version anterior el archivo (../diaguita(versionAnterior/instalador.env)) instalador.env . (diaguitaNuevaVersion)  
+	--> cp ../diaguita(versionAnterior/instalador.env .
+	((en instalador.env no se modifica nada (a criterio)))
+9) crear snap VM
+10) actualizar proyecto ( ./bin/instalador proyecto:actualizar -d /usr/local/siu/diaguita32x ) con el comando (x = version anterior)
+	--> ./bin/instalador proyecto:actualizar -d /usr/local/siu/diaguita32x
+	((Todo YES))
+11) mover a sistema sin mantenimiento  -->  ./bin/instalador instalacion:modo-mantenimiento --sin-mantenimiento 
+12) cambiar de formato dos archivos --> dos2unix instalacion/toba.conf  
+									--> dos2unix instalacion/i__produccion/instancia.ini
+13) dividimos el .conf en dos  -->   cp instalacion/toba.conf instalacion/toba-2.conf 
+14) comparamos ambos con la version anterior  -->  vimdiff ../diaguita32x/instalacion/toba-2.conf instalacion/toba-2.conf   
+											  -->  vimdiff ../diaguita32x/instalacion/toba.conf instalacion/toba.conf
+15) en el archivo siguiente  -->  vi instalacion/i__produccion/instancia.ini
+							dejamos en Diaguita --> url --> queda vacio =""    y full_url="https://test-diaguita.universidad.edu.ar"
+16) Stopeamos jasper   -->   systemctl stop jasper.service
+17) Eliminamos el link simbolico anterior  -->   rm /etc/init.d/jasper
+18) Creamos nuevamente el link de jasper   -->   ln -s /usr/local/siu/diaguita321/bin/diaguita_reportes.sh /etc/init.d/jasper
+19) modificamos el archivo  -->  vi /etc/init.d/jasper  
+							PATH_DIAGUITA="/usr/local/siu/diaguita32x"   
+							PIDFILE=/var/run/diaguita/$NAME.pid con permisos de escritura para usuario www-data (de no existir, crear)
+20) modificar con nueva version   -->   vi /etc/supervisor/conf.d/diaguita.conf 
+21) reiniciamos jasper supervisor  --> systemctl restart jasper.service suerpervisor.service 
+22) buscamos los siguientes archivos dentro de la nueva version   jasperreports-5.6.0.jar y jasperreports-javaflow-5.6.0.jar 
+	Modificar archivo en cada uno find /usr/local/siu/diaguita321/ -name jasperreports-5.6.0.jar  find /usr/local/siu/diaguita321/ -name jasperreports-javaflow-5.6.0.jar
+	en default.jasperreports.properties   
+	damos en enter en ambos archivos y modificamos lo siguiente
+	====================================
+		net.sf.jasperreports.awt.ignore.missing.font=false
+	por
+
+		net.sf.jasperreports.awt.ignore.missing.font=true
+	======================================
+23) modificamos ambios include en los apache  -->  vi /etc/apache2/sites-enabled/diaguita-443.conf   (ambos include con la nueva version)
+24) movemos la carpeta con la vieja version a /root/Borrar  --> mv /root/Diaguita/SIU-Diaguita-3.2.x-Linux.7z /root/Borrar
+															--> mv /root/Diaguita/vendor.7z  /root/Borrar
+25) copiamos logo_institucion.png de /root/diaguita a /usr/local/siu/diaguitaXXX/www/img  -->  cp /root/Diaguita/logo_institucion.png /usr/local/siu/diaguitaXXX/www/img
+26) Levantamos apache  -->  systemctl restart apache2
+
+Verificamos con las siguientes url que levante todo ok
+==========
+TEST
+==========
+https://test-compras.universidad.edu.ar/
+https://test-diaguita.universidad.edu.ar/
+
+==========
+PRODUCCION
+==========
+https://diaguita.universidad.edu.ar/  (de no ingresar, insertar ip en el archivo de configuracion .conf)
+https://compras.universidad.edu.ar/
+
+			-----------------------------------	ACTUALIZACION IMPORTACION DE Diaguita PRODUCCION A TEST	 - BASE DE DATOS - DATABASE - DESDE test-------------------------
+1)	su - postgres
+2)	cd Importador/
+3)	./menu.sh
+4)	2.- Importación desde Pilaga produccion
+5)	11:00		--> 	la fecha que se requiere
+6)	s	--> Para continuar
+7)	tarda como 15 minutos
+
+
+-- SI EL PROCESO DA ERROR, REINICIAR EL POSTGRES EN TEST --
+
+----------------------------------------------------------------------------------------------
+
+Diaguita -> Al actualizar la version de diaguita en la base de datos, un tramite tuvo que cambiar de estado
+
+EA -> AU 
+
+Probar primero en test
+
+En la base de datos DIAGUITA>TABLAS>scp_convocatorias
+
+select * from diaguita.scp_convocatorias
+where id_convocatoria = '11621'
+
+----------------------------------------------------------------------------------------------
+
+Vincular Diaguita con Aari: https://expedientes.siu.edu.ar/docs/diaguita/
+Añadir la etiqueta (verify)
+
+/usr/local/siu
+
+----------------------------------------------------------------------------------------------
+
+Error de Diaguita 
+
+Server error 500
+Error interno en el servidor: no se encuentra el metodo get_list en la clase .. ¿ruta mal formada?
+forbidden (truncated)
+verificar que la api en arai_documentos.ini este correcta
+para poner en diaguita -- > https://test-univ.universidad.edu.ar/docs
+
+
+--------------------------------------------------------------------
+
+
+Foro: https://foro.comunidad.siu.edu.ar/t/diaguita-sudocu-no-autoriza-convocatoria-solucionado/25961/22 no autoriza convocatoria diaguita
+
+--------------------------------------------------------------------
+
+
+Tanto Diaguita como Pilaga manejan sesiones con redis, si hay errores en sesiones o en documentos que no aparecen en la bandeja de huarpe, bandeja a firmar revisar por aca
+
+systemctl restart supervisorctl redis
+
+--------------------------------------------------------------------
+
+Diaguita cambiar el estado de los 2 documentos a Firmado, en la tabla scp_documentos_exportaciones puntualmente el campo estado_autorizacion de PE a RA
+
+select id_solicitud, estado from diaguita.scp_solicitudes where numero = 2455 and ejercicio = 2023; (SACAR EL REGISTRO)
+update scp_solicitudes set estado='AU' where numero = 2463 and ejercicio = 2023; (ACTUALIZAR A 'AU')
+
+select * from diaguita.scp_documentos_exportaciones where id_registro = 17967; (FILTRAR CON EL REISTRO)
+update scp_documentos_exportaciones set estado_autorizacion = 'RA' where id_registro = 17967; (CAMBIAR A RA)
+
+systemctl restart supervisorctl jasper apache2 redis postgresql redis
+
+update scp_solicitudes set estado='AU' where numero = 2480 and ejercicio = 2023;
+
+update scp_documentos_exportaciones set estado_autorizacion = 'RA' where id_registro = 17985;
+
+
+--------------------------------------------------------------------
+
+Si no se cargan los iconos/ imagenes, en el log de usuarios idm, dar permiso a la carpeta que carga las imagenes dentro del contenedor
+
+docker exec -it usuarios_idm.2.stdha1457ptepgztghdoi7qmn /bin/bash
+chmod 777 /usr/local/app/resources/resources/img/aplicaciones_iconos/
+
+-----------------------------x---------------------------------------
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

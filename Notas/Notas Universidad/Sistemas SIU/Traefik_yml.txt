@@ -1,0 +1,78 @@
+version: '3.7'
+services:
+  reverse-proxy:
+    image: traefik:2.10.3
+    ports:
+      - "80:80"
+      - "443:443"
+    configs:
+      - source: traefik_tls_cert
+        target: /certificadoSSL.cert
+      - source: traefik_tls_config
+        target: /etc/traefik/tls.toml
+      - source: traefik_security
+        target: /etc/traefik/security.toml
+    secrets:
+      - source: traefik_tls_key
+        target: /certificadoSSL.key
+    command:
+      - --api.insecure=false # set to 'false' on production
+      - --api.dashboard=true
+      - --api.debug=false # enable additional endpoints for debugging and profiling
+      - --log.level=INFO # debug while we get it working, for more levels/info see https://docs.traefik.io/observability/logs/
+      - --providers.docker=true
+      - --providers.docker.swarmMode=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=traefik-public
+      - --providers.file=true
+      - --providers.file.directory=/etc/traefik
+      - --entrypoints.web.address=:80
+      - --entrypoints.web-secured.address=:443
+      - --entrypoints.web-secured.http.encodequerysemicolons=true
+    deploy:
+            mode: global
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - "traefik.enable=true"
+        # Dasboard
+        - "traefik.http.routers.api.rule=Host(`traefik.universidad.edu.ar`)"
+        - "traefik.http.routers.api.service=api@internal"
+        - "traefik.http.routers.api.middlewares=auth"
+        - "traefik.http.middlewares.auth.basicauth.users=traefik:$$apr1$$trrBYCYy$$kdWnddnPVyl5h4RPOYNoS"
+          # Dummy service for Swarm port detection. The port can be any valid integer value.
+        - "traefik.http.services.dummy-svc.loadbalancer.server.port=9999"
+        # Redirect TLS
+        #- "traefik.http.routers.http-catchall.rule=hostregexp(`{host:.+}`)"
+        - "traefik.http.routers.http-catchall.rule=host(`traefik.universidad.edu.ar`)"
+        - "traefik.http.routers.http-catchall.entrypoints=web"
+        - "traefik.http.routers.http-catchall.middlewares=redirect-to-https@docker"
+        - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+        - "traefik.http.routers.traefik.rule=Host(`capacitacion-unir.unr.edu.ar`) && (PathPrefix(`/traefik`) || Headers(`Referer`, `traefik.universidad.edu.ar`))"
+        - "traefik.http.routers.traefik.entrypoints=https"
+        - "traefik.http.routers.traefik.tls.certresolver=letsencrypt"
+        - "traefik.http.routers.traefik.service=api@internal"
+        - "traefik.http.routers.traefik.middlewares=traefik-stripprefix"
+        - "traefik.http.middlewares.traefik-stripprefix.stripprefix.prefixes=/traefik"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      traefik-public:
+
+configs:
+  traefik_tls_config:
+    file: ./tls.toml
+  traefik_security:
+    file: ./security.toml
+  traefik_tls_cert:
+    external: true
+
+secrets:
+  traefik_tls_key:
+    external: true
+
+networks:
+  traefik-public:
+    external: true
+

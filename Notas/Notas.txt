@@ -1,0 +1,2502 @@
+--------------------------------------
+-- NOTAS --
+--------------------------------------
+
+-------------------------------------------------------------------------------------------------------------------------------
+�Inicializar Git en un directorio
+
+/Git
+ 
+git init 
+git clone http://git:81/iti/scripts-iti/-/tree/master/
+git pull 
+
+git commit -m "hola"+
+git add .
+git push
+
+git pull # para bajar la sincro
+git add . #para agregar los archivos modificados
+git commit -m "comentario" # para agregarle el comentario al commit
+git push " para subir el cambio
+
+-------------------------------------------------------------------------------------------------------------------------------
+Agregar llave de git y pasarsela para que lo carguen en git
+
+
+ssh-keygen -t rsa -b 4096 -C "puppeteer@01.dominio.com"
+cat ~/.ssh/id_rsa.pub
+
+--------------------------------------------------------------------------------------------------------------------------------
+ ��Instalar gitlab runner
+--------------------------------------------------------------------------------------------------------------------------------
+
+wget -nv https://packages.gitlab.com/install/repositories/runner/gitlab-runner/script.rpm.sh
+nv es no verbose
+
+dnf install gitlab-runner
+
+--------------------------------------------------------------------------------------------------------------------------------
+  Actualizar sistema operativo - Centos7
+--------------------------------------------------------------------------------------------------------------------------------
+
+Copiar el script de actualizacion a /root
+scp update-generico-el9.sh root@servidor:/root
+
+bash update-generico-el9.sh
+reboot
+
+dnf clean all
+./uname.sh
+
+--------------------------------------------------------------------------------------------------------------------------------
+ ��Ver sistema operativo
+--------------------------------------------------------------------------------------------------------------------------------
+
+lsb_release -a
+cat /etc/os-release
+cat /etc/almalinux-release
+cat /etc/lsb-release
+cat /etc/redhat-release
+
+--------------------------------------------------------------------------------------------------------------------------------
+  Chequeo optimo de disco - En la flotante (Primario)
+--------------------------------------------------------------------------------------------------------------------------------
+
+ Nunca hacer fsck en diskless, siempre fijarse antes con un DRBDADM STATUS
+
+
+Si esta en diskless puede fallar todo el proceso, tiene que estar como UPDATE
+
+
+./mantenimiento.sh e server38 server38a
+
+Reviso tipo de particiOn a revisar (Puede ser EXT4 o XFS)
+
+Servidores XFS: server30 a server54.
+Servidores EXT4: server55 en adelante.
+
+blkid
+
+---------------------------------------------
+ �Para realizar el chequeo del sistema de archivos de los compartidos seguir estos pasos:
+---------------------------------------------
+
+Chequear /HOME
+
+/home
+/dev/mapper/VG2-home
+
+# Revisar antes y anotarse espacio ocupado por lost+found:
+du -shc /home/lost+found/
+ 
+systemctl stop nrpe.service crond.service php*-php-fpm.service httpd lshttpd
+systemctl stop proftpd
+
+umount /home/backup/MFS
+umount /home/backup/
+umount /home/
+
+Si da target is busy:
+https://monovm.com/blog/fix-umount-target-is-busy-error/
+lsof | grep /path/to/target
+ 
+# Para sistemas EXT4:
+fsck -fCy /dev/mapper/VG2-home
+ 
+# Para sistemas XFS  xfs (server30 a server54):
+xfs_repair /dev/mapper/VG2-home
+# Si dice "ERROR: The filesystem has valuable metadata changes in a log which needs to be replayed" agrego -L al comando, sino continuar.
+ 
+mount /dev/mapper/VG2-home
+mount /home/backup/
+mount /home/backup/MFS
+ 
+systemctl start nrpe.service crond.service php*-php-fpm.service httpd lshttpd
+ 
+# Comparamos al final el espacio ocupado por lost+found para ver si se perdieron muchos archivos y debemos realizar alguna tarea de recuperación manual:
+du -shc /home/lost+found/
+ 
+# Ejecutamos el siguiente comando para que no alerte nagios por problemas lógicos por las siguientes 24 horas:
+/usr/lib64/nagios/plugins/check_fsck.sh -s
+
+---------------------------------------------
+
+Chequear /MAILS
+
+/Mails
+/dev/mapper/VG3-mail
+
+# Revisar antes y anotarse espacio ocupado por lost+found:
+du -shc /Mails/lost+found/
+ 
+systemctl stop nrpe.service flashcache.service exim.service dovecot.service
+ 
+df -Th
+
+umount /Mails
+ 
+# Para sistemas EXT4 :
+fsck -fCy /dev/mapper/mail
+ 
+# Para sistemas XFS  xfs (server30 a server54):
+xfs_repair /dev/mapper/mail
+# Si dice "ERROR: The filesystem has valuable metadata changes in a log which needs to be replayed" agrego -L al comando, sino continuar.
+ 
+ xfs_repair  /dev/mapper/VG3-mail -L
+
+ 
+mount /Mails/
+ 
+systemctl start nrpe.service flashcache.service exim.service dovecot.service
+ 
+# Comparamos al final el espacio ocupado por lost+found para ver si se perdieron muchos archivos y debemos realizar alguna tarea de recuperación manual:
+du -shc /Mails/lost+found/
+ 
+# Ejecutamos el siguiente comando para que no alerte nagios por problemas lógicos por las siguientes 24 horas:
+/usr/lib64/nagios/plugins/check_fsck.sh -s
+
+---------------------------------------------
+
+ Chequear /OPT
+
+/opt
+/dev/mapper/VG1-opt
+
+/var/spool/exim
+/dev/mapper/VG1-exim
+
+# En este caso tenemos que empezar bajando keepalived en ambos servidores, una vez estan ambos como secundario tomar uno para poner el recurso sda5 como primario para tener el /opt disponible para el fsck
+systemctl stop keepalived
+drbdadm primary sda5
+ 
+# Ahora dejamos disponible el recurso lvm
+systemctl restart lvm2-lvmetad lvm2-lvmpolld
+pvscan ; vgscan ; lvscan
+vgchange -ay
+pvscan ; vgscan ; lvscan
+ 
+# Hacemos el fsck, aca podemos modificar tambien si queremos hacer el fsck en VG1-exim
+fsck -fCy /dev/mapper/VG1-opt
+ 
+# Bajamos recursos lvm y drbd
+vgchange -an
+pvscan ; vgscan ; lvscan
+drbdadm -v secondary all
+ 
+# Ahora levantamos keepalived en uno, y cuando ya esta como primario levantamos el otro
+systemctl start keepalived.service
+ 
+# Ejecutamos el siguiente comando para que no alerte nagios por problemas lógicos por las siguientes 24 horas:
+/usr/lib64/nagios/plugins/check_fsck.sh -s
+
+--------------------------------------------------------------------------------------------------------------------------------
+ �Al reiniciar el nrpe se suele desmontar /home
+
+Esperar por si aparece una alerta en el Nagstamont que home no se monto bien
+
+Bajar y volver a levantar
+
+ �Si no esta montada la carpeta home, montarla manualmente, si da error hacer un chequeo de disco y volver a montar
+Levantar todo
+/root/servicios.sh up 
+--------------------------------------------------------------------------------------------------------------------------------
+
+ �� Buscar paquetes con dfn
+
+dnf search libjpeg
+dnf provides "*/libjpeg.so.8"
+
+---------------------------------------------
+
+  ?Alias en bashrc
+
+en .bashrc se encuentran los Alias
+vi ~/.bashrc
+
+alias fz3="ssh panel3@fzweb01.dominio.com"
+
+Alias para un usuario
+
+Crear con root un archivo .bashrc
+alias ll='ls -lh --color=auto'
+/home/bkoff
+
+
+ddrescue -f -n /dev/sdb /dev/sde ddrescue.log
+
+ddrescue -f -n /dev/sdb /dev/sde /root/sdb_to_sde.map
+
+---------------------------------------------
+
+ Copiar con permisos y recursive
+
+cp -a 
+
+---------------------------------------------
+
+ Comprimir y descomprimir
+
+zip -r comprimido.rar /nico
+unzip
+
+---------------------------------------------
+
+  Find por nombre
+
+find . -iname 'archivo'
+
+---------------------------------------------
+
+  Listar procesos actuales
+
+ps faxu
+
+---------------------------------------------
+
+  Saber mi IP publica
+
+curl ifconfig.me
+
+---------------------------------------------
+
+  Grep para filtrar
+
+Filtrar en archivo de texto
+cat readme.txt ! grep hola
+
+---------------------------------------------
+
+ �Ver logs 
+
+Mensajes generales:
+tail -f /var/log/messages
+
+Filtrar cualquier log por errores:
+grep -iE 'error|timeout|high load|cpu|memory|too many' /var/log/messages
+
+Buscar en todos los logs de apache httpd:
+/var/log/httpd/*_log
+
+docker logs tr-backend-smtpdlog-2  --since "2025-01-22T11:30:00" --until "2025-01-22T13:48:00"
+---------------------------------------------
+
+ �Borrar mensajes consola
+
+dmesg -d
+dmesg -n 1
+
+---------------------------------------------
+
+ �Contar cantidad de directorios
+
+find /home/ -mindepth 1 -maxdepth 1 -type d | wc -l
+
+---------------------------------------------
+
+ Excluir que se actualizen versiones viejas
+
+sudo nano /etc/dnf/dnf.conf
+exclude=chromium
+
+---------------------------------------------
+
+ �Informacion de discos
+
+lsblk
+
+lsscsi
+lsblk -f
+
+---------------------------------------------
+
+ �Chequear ram 
+
+free -h
+
+---------------------------------------------
+
+ ?Setear el peso de un archivo log a 0
+
+truncate -s 0 /var/log/mount_check.log
+truncate -s 0 /var/log/alerta_paquetes/ip.log
+
+--------------------------------------------------------------------------------------------------------------------------------
+Iptables
+
+1. Listar reglas de iptables
+sudo iptables -L INPUT -n --line-numbers
+sudo iptables -L -n -v
+
+2. Habilitar regla de firewall con iptables
+-A INPUT -m state --state NEW -m tcp -p tcp --source xxx.xx.xxx.xx --dport 22 -j ACCEPT
+(o agregar al archivo) /sbin/iptables -A INPUT -p tcp -s xxx.xx.xxx.xx --dport 27017 -j ACCEPT
+
+3. Insertar regla en posición específica -I POSICION
+/sbin/iptables -I INPUT 17 -p tcp -s xxx.xx.xxx.xx --dport 27017 -j ACCEPT
+/sbin/iptables -I INPUT 17 -p tcp -s xxx.xx.xxx.xx--dport 27017 -j ACCEPT
+sudo iptables -I INPUT 19 -s xxx.xx.xxx.xx -p tcp --dport 27017 -j ACCEPT
+
+4. Borrar posicion 
+sudo iptables -D INPUT 18
+
+Coneccion refused, puede darse por un error de iptables
+Siempre abrirlo en el servidor destino. En el MYsql tambien
+MongoDB no pide autenticacion al conectarse, el conexion refused viene por el firewall, manejado por iptables
+
+Firewall para monitoreo:
+-A INPUT -m state --state NEW -p tcp --source xxx.xx.xx.xx/29     --dport 5666 -j ACCEPT
+
+--------------------------------------------------------------------------------------------------------------------------------
+ Error de locales
+
+Errores comunes al iniciar sesion en bash:
+ 
+-bash: warning: setlocale: LC_CTYPE: cannot change locale (es_ES.UTF-8): No such file or directory
+-bash: warning: setlocale: LC_CTYPE: cannot change locale (es_ES.UTF-8)
+failed to set locale!
+[error] character map file UTF-8' not found: No such file or directory
+failed to set locale!
+[error] cannot read character map directory /usr/share/i18n/charmaps': No such file or directory 
+
+Solucion:
+
+dnf install glibc-locale-source glibc-langpack-en
+localedef -f UTF-8 -i en_US en_US.UTF-8
+export LANG=es_ES.UTF-8
+echo "LANG=es_ES.UTF-8" | sudo tee -a /etc/locale.conf
+
+--------------------------------------------------------------------------------------------------------------------------------
+
+ ddrescue en screen
+
+Se hace ddrescue de dos discos, uno lo clona bien y otro no
+
+Listar dispositivos de bloque
+lsblk -o +MODEL,SERIAL,HCTL
+
+Crear screen
+screen -s ddrescue-ADATA
+
+Salir del screen
+Ctrl+A D
+
+Volver a conectarse al screen
+screen -r
+
+ddrescue -f -n /dev-ssd  dev/sdc    /tooy/ddrescue.log
+-f sobrescribe
+-n una sola pasada
+
+Ctrl+A D
+
+--------------------------------------------------------------------------------------------------------------------------------
+
+ Error Critical DRBD status Error en particion: El rol secundario del servidor es incorrecto Connecting
+
+A veces las interfaces de red se dejan de ver, como primera solucion bajarlas y volveras a crear
+ifdown bond0 ; ifup bond0
+Acomodar el drbd
+drbdadm -v adjust all
+
+--------------------------------------------------------------------------------------------------------------------------------
+ DRBD
+--------------------------------------------------------------------------------------------------------------------------------
+
+-----------------------------------------
+
+Perdida de paquetes 
+ifdown/ifup bond0
+ 
+Aparecen alertas de drbd
+drbd connecting
+ 
+drbdadm status
+ifdown bond0
+ifup bond0
+
+-----------------------------------------
+
+  Configurar DRBD
+
+1. Red: configuracion IP temporal y arranque SSH
+ip link 
+ip a add 192.168.2.199/24 dev ensp150
+ip route add default via 192.168.2.1
+systemctl start sshd
+
+Editar
+mcedit /etc/drbd.d/particion.res
+
+2. Obtener ID de disco por nombre de dispositivo
+
+Grep sdf particion
+ll /dev/disk/by-id/ata-kingston | grep sdf | grep part1 (kingston nuevo)
+esto va a devolver un ID
+ata-CT240BX500SSD1_2417E8A9EFFB-part3 
+
+3. Montar disco para acceder a configuración
+mount /dev/sda4/ /mnt/
+mcedit /mnt/etc/drbd/particion.res
+
+disk ID...part1
+
+Grep sde particion
+
+ll /dev/disk/by-id/ata-kingston | grep sde | grep part1 (kingston nuevo)
+esto va a devolver un ID
+
+mount /dev/sda4/ /mnt/
+mcedit /mnt/etc/drbd/particion.res
+
+Para chequear
+grep -R MODELO /mnt/etc/drbd
+
+4. En el arranque tiro /home -> Metada teror, el drbd no entiende la estructura, la informacion no esta bien
+Se prueba nuevamente con el ddrescue
+
+/etc/drbd.d/particion.res
+/etc/drbd.d/particion.res
+/etc/drbd.d/particion.res
+/etc/drbd.d/particion.res
+/etc/drbd.d/particion.res
+/etc/drbd.d/sda5.res
+
+Reemplazamos los discos sdb y sdc entonces ahora tenemos que agregar los id de los disco en la condig de los recursos  particion.res y particion.res
+
+--------------------------------------------------
+Si se ve en disklesss bajar el recurso y volverlo a crear en el secundario
+
+fijarse a que disco corresponde y chequear que este activo con lsblk
+
+			   sda  ------> SSD
+xx1 ------>  sdb  ------> NVMe
+xx2  ------> sbc  ------> NVMe
+xx1  ------> sdd  ------> SSD
+xx2  ------> sde  ------> SSD
+xx3  ------> sdf  ------> SSD
+
+   
+drbdadm -v down xx3
+drbdadm -v up xx3
+
+O chequear si el disco esta para reemplazo con smartctl
+
+--------------------------------------------------------------------------------------------------------------------------------
+
+bash install-kernelcare.sh
+
+--------------------------------------------------------------------------------------------------------------------------------
+�Punto de montaje
+--------------------------------------------------------------------------------------------------------------------------------
+
+Primero preguntarse a que mds corresponde
+simplemds00 - ssimplemds00
+
+Editar el archivo /etc/mfs/mfsexports.cfg en el ssimple o simple
+
+Se agrega para el server01 y server02
+
+# serverserver1-w01 y serverserver1-w02
+xxx.xx.xx.xx          /eseditor      rw,alldirs,maproot=0:0
+xxx.xx.xx.xx          /eseditor      rw,alldirs,maproot=0:0
+xxx.xx.xx.xx          /esed_public   rw,alldirs,maproot=0:0
+xxx.xx.xx.xx          /esed_public   rw,alldirs,maproot=0:0
+
+Una vez editado ese archivo con las carpetas correspondientes ejecutar lo que aparece en el mod (cuando te logueas en la consola)
+
+
+pkill -HUP mfsmaster ; sleep 1 ; tail -n 500 /var/log/messages | grep "exports file has been loaded"
+scp -p /etc/mfs/mfs{exports,topology}.cfg metalog04:/etc/mfs/simplemfs00/	
+
+Entrar en el server01 y server02 y editar el archivo /etc/fstab. Agregar los puntos de montaje, le ponemos noauto para que no lo haga auto camente
+mfsmount                                   /home/docker/es-editor/filestorage       fuse3  defaults,noatime,noauto,_netdev,mfsmaster=simplemds00,mfssubfolder=/eseditor/filestorage     0 0
+mfsmount                                   /home/docker/es-editor/public            fuse3  defaults,noatime,noauto,_netdev,mfsmaster=simplemds00,mfssubfolder=/esed_public              0 0
+
+##mfsmount#simplemds00:/esed_public           /home/envios/mfs/public       fuse  defaults,noatime,_netdev,x-systemd.automount  0 0 ---> Agegar "_netdev,x-systemd.automount" Para que se monte despues de un reinicio, despues que levanta la red
+
+
+En los mismos server editar el archivo
+
+/etc/mfs/mfsmount.cfg
+
+mfsmaster=simplemds00
+
+
+systemctl daemon reload
+sudo mount -a
+mfsmount
+mount
+
+Instalar fuse3 si es necesario
+
+------------------------------------------------------
+�Instalar mfs en alma9 y montar
+------------------------------------------------------
+
+wget http://ppa.moosefs.com/src/moosefs-3.0.97-1.tar.gz 
+tar xvf  moosefs-3.0.97-1.tar.gz
+sudo dnf groupinstall "Development Tools"
+sudo dnf install fuse-devel
+cd moosefs-3.0.97/
+./configure 
+make -C mfsmount
+cp /mnt/temp/moosefs-3.0.97/mfsmount/mfsmount /usr/local/bin/mfsmount
+hash -r
+which mfsmount
+mfsmount -V
+sudo dnf install fuse fuse3
+cp /usr/local/bin/mfsmount /sbin/mfsmount
+chmod +x /sbin/mfsmount
+
+nano /etc/fstab
+
+mfsmount#simplemds00:/eseditor/filestorage  /home/envios/mfs/filestorage  fuse  defaults,noatime,_netdev  0 0
+mfsmount#simplemds00:/esed_public           /home/envios/mfs/public       fuse  defaults,noatime,_netdev  0 0
+
+systemctl daemon-reload
+mount -a
+
+--------------------------------------------------------------------------------------------------------------------------------
+
+sudo curl -o /etc/pki/rpm-gpg/RPM-GPG-KEY-MooseFS https://repository.moosefs.com/RPM-GPG-KEY-MooseFS
+sudo curl -o /etc/yum.repos.d/MooseFS.repo http://repository.moosefs.com/MooseFS-4-el9.repo
+sudo dnf install moosefs-master moosefs-chunkserver moosefs-metalogger moosefs-client
+
+--------------------------------------------------------------------------------------------------------------------------------
+SNMP
+--------------------------------------------------------------------------------------------------------------------------------
+
+Chequear snmp
+
+En el 099 no existia snmp:
+whereis snmpd
+ll /usr/sbin/snmpd
+ls: no se puede acceder a /usr/sbin/snmpd: No existe el fichero o el directorio
+
+Verificar en el 100:
+[root@server00 ~] # yum provides /usr/sbin/snmpd
+[root@server00 ~] # yum list net-snmp*
+Paquetes instalados
+net-snmp.x86_64                                                                                          1:5.7.2-49.el7_9.4                                                                                @updates
+net-snmp-agent-libs.x86_64                                                                               1:5.7.2-49.el7_9.4                                                                                @updates
+net-snmp-devel.x86_64                                                                                    1:5.7.2-49.el7_9.4                                                                                @updates
+net-snmp-libs.x86_64                                                                                     1:5.7.2-49.el7_9.4                                                                                @updates
+net-snmp-perl.x86_64                                                                                     1:5.7.2-49.el7_9.4                                                                                @updates
+net-snmp-utils.x86_64                                                                                    1:5.7.2-49.el7_9.4                                                                                @updates
+
+Instalar snmp
+yum install net-snmp net-snmp-agent-libs net-snmp-devel net-snmp-libs net-snmp-perl net-snmp-utils -y
+
+Copiar la config de otro servidor
+
+/etc/snmp/snmpd.conf
+al server99
+
+Iniciar el servicio con
+systemctl start snmpd
+
+--------------------------------------------------------------------------------------------------------------------------------
+Crear un usuario y asignarle permisos en distintos aplicativos, ejemplo en directus
+--------------------------------------------------------------------------------------------------------------------------------
+
+useradd -m -s /bin/bash directus
+sudo passwd directus
+
+mcedit /etc/sudoers.d/directus
+chmod 0440 /etc/sudoers.d/directus
+
+directusbr ALL=(ALL) NOPASSWD: /usr/bin/docker
+directusbr ALL=(ALL) NOPASSWD: /usr/bin/node
+directusbr ALL=(ALL) NOPASSWD: /usr/bin/npm
+directusbr ALL=(ALL) NOPASSWD: /usr/bin/yarn
+directusbr ALL=(ALL) NOPASSWD: /usr/sbin/nginx -t
+directusbr ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload nginx.service, /usr/bin/systemctl reload nginx
+directusbr ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart nginx.service, /usr/bin/systemctl restart nginx
+directusbr ALL=(ALL) NOPASSWD: sudoedit /etc/nginx/*
+directusbr ALL=(ALL) NOPASSWD: /usr/bin/systemctl reload puppeteer.service, /usr/bin/systemctl reload puppeteer
+directusbr ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart puppeteer.service, /usr/bin/systemctl restart puppeteer
+
+
+chmod 0440 /etc/sudoers.d/directusbr
+visudo -c
+
+IMPORTANTE: EJECUTAR VISUDO -C AL EDITAR SUDOERS
+
+Recordar ejecutar los comandos del usuario con SUDO
+
+--------------------------------------------------------------------------------------------------------------------------------
+?Configurar el acceso al usuario
+--------------------------------------------------------------------------------------------------------------------------------
+
+echo "Configurando authorized_keys"
+mkdir /home/puppeteer/.ssh
+chmod 700 /home/puppeteer/.ssh
+touch /home/puppeteer/.ssh/authorized_keys
+chmod 644 /home/puppeteer/.ssh/authorized_keys
+chown -R puppeteer.puppeteer /home/puppeteer/.ssh
+
+------------
+
+chmod 700 .ssh/
+600 .ssh/authorized_keys
+
+--------------------------------------------------------------------------------------------------------------------------------
+ ?Agregar llave Publica para permitir conexion ssh 
+--------------------------------------------------------------------------------------------------------------------------------
+
+Sacar llave:
+
+ndelrosso@ndelrosso:~$ cat ~/.ssh/id_rsa.pub
+ssh-rsa llave
+
+Agregar el campo environment y pegarla editando el user en:
+cat ~/.ssh/authorized_keys
+
+environment="SSH_USER=usuario4.delrosso" ssh-rsa llave
+
+------------------------------------------------------
+ ?Editar llaves de root y de usuarios
+------------------------------------------------------
+
+La llave root esta en 
+/root/.ssh/config
+
+La llave de usuarios esta en
+/home/usuario/.ssh/config
+
+--------------------------------------------------------------------------------------------------------------------------------
+ Agregar al grupo un usuario docker
+
+sudo usermod -aG docker <usuario>
+
+Borrar Eliminar Usuario
+
+sudo userdel nombre_usuario
+sudo userdel -r nombre_usuario
+
+--------------------------------------------------------------------------------------------------------------------------------
+
+ Logs error ocupan mucho espacio
+
+du -csh /var/log/php56-fpm.log
+8,5G	/var/log/php56-fpm.log
+8,5G	total
+
+Mostrar el limite de carga y leer la carga actual
+
+nproc
+top
+
+systemctl status php55-php-fpm.service
+ll /etc/systemd/system/php55-php-fpm.service
+
+--------------------------------------------------------------------------------------------------------------------------------
+ Limpiar
+--------------------------------------------------------------------------------------------------------------------------------
+
+dnf clean all
+systemctl list-units | sort | grep -w failed
+dnf remove --oldinstallonly -y
+
+--------------------------------------------------------------------------------------------------------------------------------
+ Si falla el envio de correos, quizas falte la carpeta geoip o haya un error en la configuracion del archivo configure de exim
+--------------------------------------------------------------------------------------------------------------------------------
+
+http://docs-iti.dat/display/EN/Geoip
+
+Probar el envio de correos:
+
+desde el compartido fz3 hice un
+./datos.sh -c aquapich.com 
+
+agarro alguna cuenta de correo y la pass, ingreso desde aca
+https://panel.email
+
+y pruebo enviar un correo a mi cuenta de empresa, despues borro de "Enviados" el correo y de "Eliminados" despues, asi no queda registro
+
+Tambien puede fallar por un error en sudoers, exim llama a sudoers, si el compartido no deja de mandar mails con exim y mailog y entra en un loop,
+Hay un error de identacion en sudoers falto un enter y eso hace fallar al sudoers, con visudo -c se hubiese solucionado
+
+
+-------------------------------------------------------------------------------------------------------------------------------
+   Servicios y errores
+--------------------------------------------------------------------------------------------------------------------------------
+ene 17 11:33:06 server72b.dominio.com apachectl[25886]: SSLCertificateFile: file '/opt/apache/conf/ssl.crt/1111wildcard.sitio.com.ar.crt' does not exist or is empty
+systemctl start apache https
+
+Imunify aibolit-resident no esta en ejecucion
+systemctl restart aibolit-resident
+
+--------------------------------------------------------------------------------------------------------------------------------
+ �� Sincronizar ldap
+--------------------------------------------------------------------------------------------------------------------------------
+
+Syncro ldap si faltan (siempre en el ldap)
+
+[root@ldap ~] # for i in $(cat); do /scripts/exportuserldif.sh ldap $i; /scripts/importuserldif.sh ldap4 usuario.ldif; done
+server892129
+server062022
+server380974
+server451603
+Los datos del usuario con uid=server892129 fueron exportados a usuario.ldif.
+adding new entry "uid=server892129,ou=server89,ou=people,dc=linux,dc=backend"
+
+Los datos del archivo LDIF "usuario.ldif" han sido importados al servidor LDAP "ldap4.linux.backend".
+Los datos del usuario con uid=server062022 fueron exportados a usuario.ldif.
+adding new entry "uid=server062022,ou=server06,ou=people,dc=linux,dc=backend"
+
+Los datos del archivo LDIF "usuario.ldif" han sido importados al servidor LDAP "ldap4.linux.backend".
+Los datos del usuario con uid=server380974 fueron exportados a usuario.ldif.
+adding new entry "uid=server380974,ou=server38,ou=people,dc=linux,dc=backend"
+
+Los datos del archivo LDIF "usuario.ldif" han sido importados al servidor LDAP "ldap4.linux.backend".
+Los datos del usuario con uid=server451603 fueron exportados a usuario.ldif.
+adding new entry "uid=server451603,ou=server45,ou=people,dc=linux,dc=backend"
+
+Los datos del archivo LDIF "usuario.ldif" han sido importados al servidor LDAP "ldap4.linux.backend".
+Los datos del usuario con uid=jn000336 fueron exportados a usuario.ldif.
+adding new entry "uid=jn000336,ou=server43,ou=people,dc=linux,dc=backend"
+
+Los datos del archivo LDIF "usuario.ldif" han sido importados al servidor LDAP "ldap4.linux.backend".
+
+[root@ldap ~] # /scripts/diff_users.sh ldap ldap4
+
+Buscando diferencias entre ldap y ldap4
+--- /root/usuarios_ldap       2025-01-31 17:07:14.656599430 -0300
++++ /root/usuarios_ldap4       2025-01-31 17:07:16.161667314 -0300
+-server892129
+-server062022
+-server380974
+-server451603
+-jn000336
+
+--------------------
+
+/scripts/check_sincro_monitor.sh
+/scritps/diff_users.sh ldap ldap2
+
+--------------------------------------------------------------------------------------------------------------------------------
+ - Fallo en placa de red -
+--------------------------------------------------------------------------------------------------------------------------------
+
+Lan 0 y lan 1 estan conectadas entre servidores. Wan 0 y bkl0 estan conectadas al switch
+Bajar la lan que esta fallando administrativamente y se va a sincronizar la que esta funcionando, la que se cae sola generalmente. (siempre trabajando desde el secundario)
+Si no sabes que lan esta fallando, bajar una y esperar.SI falla es esa, sino bajar la otra y esperar
+
+Diagnostico placa de red ej wan0
+
+cat /sys/class/net/wan0/carrier
+0->Desconectado
+1->Conectado
+
+ethtool wan0 | grep -i link
+ethtool bkl0 | grep Speed
+
+
+1000 es bueno
+100  es malo
+
+Probar ambos:
+
+Bajar administrativamente la placa de red:
+
+ip -s link show wan0
+ip link set bond0 down
+ip link set bond0 up
+
+ifdown bond0
+ifup bond0
+
+Perdida de paquetes queda un servidor en connecting
+mtr 192.168.100.2 (desde el a) 
+mtr 192.168.100.1 (desde el b)
+
+/root/fix_bond_ifaces
+
+dmesg -T | grep r8169
+
+Scripts para chequear usados por nagios (monitoreo)
+
+/usr/lib64/nagios/plugins/eth_speed
+/usr/lib64/nagios/plugins/check_bond 
+
+ifdown lan0
+ifdown lan
+ifdown lan1
+ifup lan1
+ifup lan0
+ifup bond0
+
+ cat /etc/sysconfig/network-scripts/ifcfg-lan0 
+
+
+dmesg -T
+dmesg | grep -i bkl0
+
+ping 192.168.100.2
+ping 192.168.100.1
+
+
+/root/servicios.sh down
+mcedit /etc/udev/rules.d/60-net.rules
+tail -f /var/log/servicios.log 
+
+systemctl restart network-online.target
+
+# Consultar y manipular el estado de la interfaz de red Ethernet.
+mii-tool -r lan0 
+
+lspci
+ip link show - Si dicen state UP, estan correctas, sino dirian state DOWN
+
+ifconfig -a - Las mac van en este archivo mcedit /etc/udev/rules.d/60-net.rules
+La que este asignando ip, es la de backend ''bkl0''  en su totalidad de las veces comienza con una combinacion diferente a las otras 3 que son TPlink,
+
+ip -6 route show - no tiene que ser unreachable
+
+----------------------------------------------
+
+Si se ven dos placas de red y las otras no, el problema puede estar en el calbe utp. Que las ajusten y las vuelvan a poner
+
+Si las placas de red no levantan conifup ifdown cambiar el 
+MTU=4000 a 1500 o 9000
+En el archivo de configuracion de la lan1 lan0 y bond0
+
+--------------------------------------------------------------------------------------------------------------------------------
+ Error de perdida de paquetes 
+--------------------------------------------------------------------------------------------------------------------------------
+
+dmesg
+perdiendo paquetes en wan0
+
+[18071335.511352] pcieport 0000:00:1b.3: PCIe Bus Error: severity=Corrected, type=Physical Layer, id=00db(Receiver ID)
+[18071335.518022] pcieport 0000:00:1b.3:   device [8086:06c3] error status/mask=00000001/00002000
+[18071335.524662] pcieport 0000:00:1b.3:    [ 0] Receiver Error         (First)
+[18071335.531103] pcieport 0000:00:1b.3: AER: Multiple Corrected error received: id=00db
+[18071335.537574] pcieport 0000:00:1b.3: can't find device of ID00db
+[18071337.557673] pcieport 0000:00:1b.3: AER: Multiple Corrected error received: id=00db
+[18071504.453585] pcieport 0000:00:1b.3:    [ 0] Receiver Error         (First)
+[18071504.462672] pcieport 0000:00:1b.3:    [ 6] Bad TLP               
+[18071504.471710] pcieport 0000:00:1b.3:    [ 7] Bad DLLP              
+[18071504.480912] pcieport 0000:00:1b.3: AER: Multiple Corrected error received: id=00db
+[18071504.490170] pcieport 0000:00:1b.3: can't find device of ID00db
+
+mantenimiento general de harEMPare
+upgrade de bios
+revisar la placa wan0 y cables que estén en buen estado
+
+------------------------------------------------------------------------------------------------------------------------------------------
+�Error: no inicia apache httpd
+------------------------------------------------------------------------------------------------------------------------------------------
+
+Systemctl status httpd
+
+En panel3 verificamos el servidor donde esta el cliente y creamos los archivos que faltan
+
+mcedit /opt/apache/conf/vhosts/atechaco.org.conf
+
+cd /opt/apache/conf/ssl.crt
+mcedit atechaco.org.crt
+systemctl restart httpd.service 
+systemctl status httpd.service 
+cd /opt/apache/conf/ssl.key/
+touch atechaco.org.key
+
+--------------------------------------------------------------------------------------------------------------------------------
+ Error de apache httpd
+--------------------------------------------------------------------------------------------------------------------------------
+
+service httpd status
+service httpd start (cuenta server14009 error)
+./datos.sh server140009
+ll /home/server140009
+service httpd start
+mv /opt/apache/conf/vhosts/server140009.panel.com.conf /opt/apache/conf/vhosts/server140009.panel.com.conf.bak
+service httpd start
+status httpd.service 
+
+--------------------------------------------------------------------------------------------------------------------------------
+ Error syslog
+--------------------------------------------------------------------------------------------------------------------------------
+
+systemctl restart syslog
+
+--------------------------------------------------------------------------------------------------------------------------------
+ Procesos Zombie
+--------------------------------------------------------------------------------------------------------------------------------
+
+ps fax | grep Z
+systemctl stop taz
+ps fax | grep Z
+systemctl start taz
+
+http://docs-iti.dat/display/NOC/Servicio+TAZ+caido
+
+--------------------------------------------------------------------------------------------------------------------------------
+Instalar deshabilitando el repo un repositorio especifico
+--------------------------------------------------------------------------------------------------------------------------------
+
+yum -y install mysql-community-client --disablerepo=elrepo --disablerepo=imunify360-alt-php
+--disablerepo=*
+
+--------------------------------------------------------------------------------------------------------------------------------
+Check nrpe NRPE
+--------------------------------------------------------------------------------------------------------------------------------
+uptime
+free -h
+/usr/lib64/nagios/plugins/check_php_fpm.sh 
+free -h
+--sort=pcpu
+/scripts/bajacarga 3
+free -h
+uptime
+ps aux --sort=pcpu
+
+--------------------------------------------------------------------------------------------------------------------------------
+ Matar procesos de usuario de un sitio en particular y reiniciar apache
+--------------------------------------------------------------------------------------------------------------------------------
+
+ps axfu|grep server041890
+kill -9 10776; kill -9 11091; kill -9 11412; kill -9 11716; kill 12240; systemctl restart httpd.service
+ 
+--------------------------------------------------------------------------------------------------------------------------------
+Sitios off
+--------------------------------------------------------------------------------------------------------------------------------
+
+siguen off los sitios, aun reiniciando apache, probe con un bajacarga
+le hice un restart al fpm de todos los php y arranco
+
+--------------------------------------------------------------------------------------------------------------------------------
+   Crear swap SWAP
+--------------------------------------------------------------------------------------------------------------------------------
+
+mkswap /dev/sda3
+swapon /dev/sda3
+lsblk -f
+
+------------------------------
+
+Mucho uso de swap en envia-staging
+borrar y volver a crear la swap
+ 
+swapoff /dev/zram0
+lsmod | grep zram
+echo "zram" >> /etc/modules-load.d/zram.conf
+cat /sys/block/zram0/disksize
+echo 8G > /sys/block/zram0/disksize
+mkswap /dev/zram0
+swapon --priority 50 /dev/zram0
+
+--------------------------------------------------------------------------------------------------------------------------------
+ Agregar llave conocida
+--------------------------------------------------------------------------------------------------------------------------------
+
+WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED! 
+
+Permission denied (publickey).
+cuando te dice asi...copa y pega la linea esta en tu consola y te deja...
+
+ssh-keygen -f "/home/ndelrosso/.ssh/known_hosts" -R "192.168.2.199"
+
+------------------------------------------------------------------------------------------------------------------------------------------
+ Crear un cron que monte particiones a traves de un script
+------------------------------------------------------------------------------------------------------------------------------------------
+
+#Creamos el script
+mcedit /usr/local/bin/cron_mount.sh
+
+----------------------------------------------
+# Este script chequea si esta montado o no, escribe un log, hay que agregarle el archivo de log y el crontab /crontab.d segun esta en server y 02
+#!/bin/bash
+
+export PATH=$PATH:/usr/sbin:/sbin
+
+# Verificar si el servidor tiene la IP flotante
+if ! ip a show dev wan0 | grep -q "wan0:1"; then
+#    echo "Servidor sin la IP flotante."
+    exit 0
+fi
+
+# Verificar si el punto de montaje existe para public
+if ! mountpoint -q /home/docker/es-editor/public; then
+    echo "El punto de montaje /public no existe. Montando..."
+    mfsmount /home/docker/es-editor/public
+    if [ $? -eq 0 ]; then
+        echo "Montaje de /public exitoso."
+    else
+        echo "Error al montar /public." >&2
+    fi
+fi
+#else
+#    echo "El punto de montaje /public ya está activo."
+#fi
+
+# Verificar si el punto de montaje existe para filestorage
+if ! mountpoint -q /home/docker/es-editor/filestorage; then
+    echo "El punto de montaje /filestorage no existe. Montando..."
+    mfsmount /home/docker/es-editor/filestorage
+    if [ $? -eq 0 ]; then
+        echo "Montaje de /filestorage exitoso."
+    else
+        echo "Error al montar /filestorage." >&2
+    fi
+fi
+#else
+#    echo "El punto de montaje /filestorage ya está activo."
+#fi
+----------------------------------------------
+
+#Damos permisos
+chmod +x /usr/local/bin/cron_mount.sh
+
+#Creamos cron cada 5 min
+mcedit /etc/cron.d/mfsmount_check
+*/5 * * * * root /usr/local/bin/cron_mount.sh >> /var/log/mount_check.log 2>&1
+
+#Verificamos la salida de los logs
+cat /var/log/mount_check.log
+
+------------------------------------------------------------------------------------------------------------------------------------------
+ �� Editar repositorios
+------------------------------------------------------------------------------------------------------------------------------------------
+
+ One of the configured repositories failed (Desconocido),
+ and yum doesn't have enough cached data to continue. At this point the only
+ safe thing yum can do is fail. There are a few ways to work "fix" this:
+
+     1. Contact the upstream for the repository and get them to fix the problem.
+
+     2. Reconfigure the baseurl/etc. for the repository, to point to a working
+        upstream. This is most often useful if you are using a newer
+        distribution release than is supported by the repository (and the
+        packages for the previous distribution release still work).
+
+     3. Run the command with the repository temporarily disabled
+            yum --disablerepo=<repoid> ...
+
+     4. Disable the repository permanently, so yum won't use it by default. Yum
+        will then just ignore the repository until you permanently enable it
+        again or use --enablerepo for temporary usage:
+
+            yum-config-manager --disable <repoid>
+        or
+            subscription-manager repos --disable=<repoid>
+
+     5. Configure the failing repository to be skipped, if it is unavailable.
+        Note that yum will try to contact the repo. when it runs most commands,
+        so will have to try and fail each time (and thus. yum will be be much
+        slower). If it is a very temporary problem though, this is often a nice
+        compromise:
+
+            yum-config-manager --save --setopt=<repoid>.skip_if_unavailable=true
+
+
+
+Editar /etc/yum.repos.d/CentOS-SCLo-sclo.repo 
+y reemplazar por vault, agregar Vault
+
+[centos-sclo-sclo]
+name=CentOS-7 - SCLo sclo
+baseurl=http://vault.centos.org/7.9.2009/sclo/x86_64/sclo/
+gpgcheck=1
+enabled=1
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-SIG-SCLo
+
+[centos-sclo-sclo-testing]
+name=CentOS-7 - SCLo sclo Testing
+baseurl=http://vault.centos.org/7.9.2009/sclo/x86_64/sclo/
+gpgcheck=0
+enabled=0
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-SIG-SCLo
+
+[centos-sclo-sclo-source]
+name=CentOS-7 - SCLo sclo Sources
+baseurl=http://vault.centos.org/7.9.2009/sclo/Source/sclo/
+gpgcheck=1
+enabled=0
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-SIG-SCLo
+
+[centos-sclo-sclo-debuginfo]
+name=CentOS-7 - SCLo sclo Debuginfo
+baseurl=http://vault.centos.org/7.9.2009/sclo/debug-tree/
+gpgcheck=1
+enabled=0
+gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-SIG-SCLo
+
+------------------------------------------------------------------------------------------------------------------------------------------
+ Redireccion en nignx
+------------------------------------------------------------------------------------------------------------------------------------------
+
+envios.com.conf 
+ssl.envios.com.conf 
+
+server {
+        listen 443 ssl;
+        server_name nuevo.envios.com nuevoenvios.empresa.com www.nuevoenvios.empresa.com; ##Añadir las redirecciones aqui
+		....
+		
+------------------------------------------------------------------------------------------------------------------------------------------ 
+  Para que un usuario pueda ver logs de nginx, se lo agrega al grupo ngnx y la carpeta de logs
+------------------------------------------------------------------------------------------------------------------------------------------ 
+
+/var/lib/nginx se cambia de grupo a
+root : nginx
+ejemplo en directus01
+
+------------------------------------------------------------------------------------------------------------------------------------------
+ �Borrar seervicios fantasmas
+------------------------------------------------------------------------------------------------------------------------------------------
+
+[root@02 /etc/systemd/system] # sudo systemctl reset-failed
+[root@02 /etc/systemd/system] # sudo systemctl daemon-reload
+
+------------------------------------------------------------------------------------------------------------------------------------------
+ ? Agregar el servicio a service.sh para que se ejecute con el cambio de la flotante
+------------------------------------------------------------------------------------------------------------------------------------------
+
+services_to_stop_1="directus.service directus_micuenta.service wsapps.service certapps.service"
+services_to_start_0="directus.service directus_micuenta.service certapps.service wsapps.service"
+
+cat /root/servicios.sh
+ 
+------------------------------------------------------------------------------------------------------------------------------------------
+ ? Logs y Puertos abiertos
+------------------------------------------------------------------------------------------------------------------------------------------
+
+tail -f /var/log/servicios.log 
+netstat -putan|grep -i listen|grep 8058
+
+------------------------------------------------------------------------------------------------------------------------------------------
+ ��Editar ip flotante en keepalived
+------------------------------------------------------------------------------------------------------------------------------------------
+
+mcedit /etc/keepalived/keepalived.conf
+
+Exclude:
+Excluir la ipv6 flotante y agregar la flotante wan ipv4 y backend ipv4
+No agregarla en las configuracion de red
+
+------------------------------------------------------------------------------------------------------------------------------------------ 
+?Ejemplo de aplicacion servicio en PM2 que levanta las instancias - 
+------------------------------------------------------------------------------------------------------------------------------------------ 
+ 
+cat /etc/systemd/system/envios.service
+[Unit]
+Description=PM2 service for envios app
+After=network.target
+
+[Service]
+Type=simple
+User=envios
+WorkingDirectory=/home/envios
+Environment=PATH=/home/envios/.nvm/versions/node/vVERSION.DE.NODE/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/local/bin/pm2 start ecosystem.config.js --no-daemon
+ExecReload=/usr/local/bin/pm2 reload ecosystem.config.js --no-daemon
+ExecStop=/usr/local/bin/pm2 stop ecosystem.config.js
+
+[Install]
+WantedBy=multi-user.target
+
+------------------------------------------------------------------------------------------------------------------------------------------ 
+ Waiting for auto c snapd restart...
+------------------------------------------------------------------------------------------------------------------------------------------ 
+
+Progress: [  0%] [.....................................
+
+abrir otra terminar y reiniciar snapd
+
+ethtool wan0 | grep -i link
+
+------------------------------------------------------------------------------------------------------------------------------------------    
+  Montar un disco
+------------------------------------------------------------------------------------------------------------------------------------------ 
+
+Verificar que el disco viejo no tenga datos
+lsblk -f /dev/sdc
+sudo file -s /dev/sdc
+
+Crear particion gpt
+sudo fdisk /dev/sdc
+g     �?crear tabla GPT
+n     �?nueva partición
+<Enter> (3 veces para aceptar valores por defecto)
+w     �?escribir cambios y salir
+
+Formatear
+sudo mkfs.ext4 /dev/sdserver
+
+
+Montamos temporalmente en mnt y copiamos
+mount /dev/sda1 /mnt
+
+
+sudo rsync -avxHAX /home/usuario2/ /mnt/
+
+Renombramos el directorio viejo y creamos el punto de montaje
+sudo mv /home/usuario2 /home/usuario2.bak
+sudo mkdir /home/usuario2
+
+Montamos en el nuevo home
+sudo umount /mnt
+sudo mount /dev/sserver /home/usuario2
+
+lsblk -f
+ls /home/usuario2
+sudo chown -R usuario2:usuario2 /home/usuario2
+
+
+configurar en fstab
+sudo blkid /dev/sdserver
+sudo nano /etc/fstab
+UUID=server3c-d3205a31f666 /home/entregabilidad ext4 defaults 0 2
+
+Probar y borrar el /mnt
+umount /mnt
+sudo mount -a
+
+------------------------------------------------------------------------------------------------------------------------------------------
+Montar para generar backup: pmtserver1slv
+
+Conectar un usb externo
+
+# Verificar qué dispositivo es tu disco externo (ejemplo: /dev/sdb1)
+lsblk
+
+# Montar el disco
+mkdir -p /mnt/usb
+mount /dev/sdb1 /mnt/usb
+
+# Crear carpeta para la copia
+mkdir -p /mnt/usb/centos7-backup
+
+# Copiar todo el sistema excepto pseudo sistemas
+rsync -aAXHv --progress \
+  --exclude={"/dev/*","/proc/*","/sys/*","/tmp/*","/run/*","/mnt/*","/media/*","/lost+found"} \
+  / /mnt/usb/centos7-backup
+
+ls -l /mnt/usb/centos7-backup
+
+umount /mnt/usb
+
+------------------------------------------------------------
+Volver backup:
+
+Conecta?el disco externo y montalo:
+mkdir -p /mnt/usb
+mount /dev/sdb1 /mnt/usb
+
+Monta?la rai�z del nuevo sistema (ejemplo: en /mnt/newroot).
+Si reinstalaste CentOS en un disco nuevo, ya tenés particiones (/, /boot, swap). Montá la raíz: punto de montaje en el disco interno
+mkdir -p /mnt/newroot
+mount /dev/sda3 /mnt/newroot
+mount /dev/sda1 /mnt/newroot/boot   # si /boot está aparte
+
+Restaurá los archivos con rsync (copia inversa):
+rsync -aAXHv --progress \
+  /mnt/usb/centos7-backup/ /mnt/newroot/
+  
+Revisar /etc/fstab
+Puede que los UUIDs de discos sean distintos en el nuevo servidor. Ajustalos con:
+blkid
+vi /mnt/newroot/etc/fstab
+
+Reinstalar GRUB (para asegurarte que arranque):
+mount --bind /dev /mnt/newroot/dev
+mount --bind /proc /mnt/newroot/proc
+mount --bind /sys /mnt/newroot/sys
+chroot /mnt/newroot
+
+Desmontar todo y reiniciar:
+grub2-install /dev/sda
+grub2-mkconfig -o /boot/grub2/grub.cfg
+exit
+
+umount -R /mnt/newroot
+reboot
+
+------------------------------------------------------------------------------------------------------------------------------------------
+ ? Editar VM
+------------------------------------------------------------------------------------------------------------------------------------------
+virtual 
+
+VM no arranca porque no tiene suficiente ram el equipo
+
+
+virsh edit server27
+
+------------------------------------------------------------------------------------
+
+virsh dumpxml server21 
+<domain type='kvm' id='24'>
+  <name>server21</name>
+  <uuid>5674f1ee-0a9e-4408-9c87-server91f40675f0</uuid>
+  <memory unit='KiB'>8388608</memory>
+  <currentMemory unit='KiB'>7340032</currentMemory>
+
+ virsh dumpxml server27
+<domain type='kvm' id='27'>
+  <name>server27</name>
+  <uuid>5139af92-e76d-4997-ad2b-44dcb84dfdad</uuid>
+  <memory unit='KiB'>4194304</memory>
+  <currentMemory unit='KiB'>4194304</currentMemory>
+
+virsh dumpxml server45
+<domain type='kvm' id='23'>
+  <name>server45</name>
+  <uuid>fd85979a-055d-414c-b9b8-8e339b10edea</uuid>
+  <memory unit='KiB'>8388608</memory>
+  <currentMemory unit='KiB'>7340032</currentMemory>
+
+ virsh dumpxml server96
+<domain type='kvm' id='22'>
+  <name>server96</name>
+  <uuid>6529b1a3-fb54-4e48-ab58-35763server3fservera</uuid>
+  <memory unit='KiB'>8388608</memory>
+  <currentMemory unit='KiB'>7340032</currentMemory>
+
+ free -g
+              total        used        free      shared  buff/cache   available
+Mem:             23          19           3           0           0           3
+Swap:             3           1           1
+
+free -h
+
+Verificar que no se ocupe toda la ram
+
+
+------------------------------------------------------------------------------------
+  ?Capturar trafico entrante tcpdump y telnet - prueba de paquetes
+------------------------------------------------------------------------------------
+
+telnet <IP-del-destino> 5432
+telnet 138.219.42.164 54324
+tcpdump -n -i any tcp dst port 5432
+
+
+Origen: telnet 138.219.42.164 5432
+Destino: tcpdump -n -i any tcp dst port 5432
+
+Desde el origen tambien
+nc -vz xxx.xx.xx.xx 8080
+
+------------------------------------------------------------------------------------
+ �Escaneo de malware - Wordlpress scan
+------------------------------------------------------------------------------------
+
+wordfence malware-scan --include-all-files --no-verbose /home/server480052/
+https://www.virustotal.com/
+curl --upload-file tarjeta-alimentar-300x168.jpg https://bashupload.com/
+
+------------------------------------------------------------------------------------
+�� Recuperar Cuenta backup
+------------------------------------------------------------------------------------
+Entrar en el servidor
+
+/scripts/ver_backups_rdiff_contents.sh server651245 now '' '' '' -v
+/scritps/restorefrompackage_panel_rdiff server651245 /home/backup/weekly_rsync/ S delrossousuario4@empresa.com --rdiff now
+
+
+Restaurar backups de Mails por fecha: (buscar servidor de BKP y lista)
+
+Esto los restaura en el /home:
+rdiff-backup -r FECHA --force root@BKP::/mnt/BKP/SERVER/MAIL/USUARIO /home/USUARIO/mail
+
+
+Para llevarlos a /Mail se necesita este comando:
+sync -avh --progress /home/server090589/mail/siturismo.com/ /Mails/server090589/siturismo.com/
+
+------------------------------------------------------------------------------------
+Suspender dominio
+------------------------------------------------------------------------------------
+
+[root@server38a ~] # cat /opt/apache/conf/extra/modsecurity/empresa_domains_blocked.conf 
+# Reglas personalizadas para bloqueos de dominios para ModSecurity en empresa
+SecRule REQUEST_HEADERS:Host "superiorlapaz.edu.ar" "deny,phase:1,status:403,id:5055,msg:'Bloqueo dominio especifico'"
+
+------------------------------------------------------------------------------------
+Reemplazo de discos - Cambiar discos
+------------------------------------------------------------------------------------
+
+Si el recurso del drbd esta en diskless:
+reemplazar cable SATA y chequear molex disco sdd compartido server69a. Paso datos del disco a verificar.
+
+http://jira-iti.dat/browse/NOCIS-3455
+
+Tipo de Disco: Mecanico
+Capacidad: 1TB
+Numero de Serie: WD-WCC6Y3VJCEFS
+Posicion SATA:3
+
+Fijarse a que disco corresponde y chequear que este activo con lsblk
+
+smartctl -a /dev/sda | grep Power_On_Hours
+
+Sacar estos datos:
+
+sdb       894,3G KINGSTON SUV400S ATA 
+particion
+Power_On_Hours          0x0032   100   100   000    Old_age   Always       -       62603
+E: ID_SERIAL=KINGSTON_SUV400S37960G_50026B727605390B
+E: ID_SERIAL_SHORT=50026B727605390B
+
+
+
+http://docs-iti.dat/display/~iti/PASOS+PARA+REEMPLAZAR+DISCO+EN+COMPARTIDOS+USANDO+DDRESCUE
+
+Si se cambia un sda, se pide clonado y reemplazo a NOC
+http://docs-iti.dat/pages/viewpage.action?spaceKey=HDID&title=PROCEDIMIENTO+PARA+REEMPLAZAR+DISCOS+EN+COMPARTIDOS (usar esta)
+
+Detener keepalived en ambos y pedir cambio
+
+Particionar
+
+parted --script -a optimal /dev/sdX mklabel msdos
+
+Ver ID
+
+[root@server56b /etc/drbd.d] # ll /dev/disk/by-id/ata-*part1 | grep sdd
+lrwxrwxrwx 1 root root 10 ago 31 13:01 /dev/disk/by-id/ata-WDC_WD10EZEX-08WN4server_WD-WCC6Y2YEA1YN-part1 -> ../../sdd1
+
+Editar ID en drbd
+
+
+[root@server56b /] # grep WCC6Y2YEA1YN /etc/drbd.d/*
+/etc/drbd.d/particion.res: disk /dev/disk/by-id/ata-WDC_WD10EZEX-08WN4server_WD-WCC6Y2YEA1YN-part1;
+
+[root@server56b /] # cat /etc/drbd.d/particion.res
+resource particion {
+    device /dev/drbd6;
+    disk /dev/disk/by-id/ata-WDC_WD10EZEX-08WN4server_WD-WCC6Y0RY1941-part1; # <-------Una vez modificado guardamos y listo.
+    
+    
+Edit con otro server: si al intentar al intentar hacer drbdadm up del recurso da un error, hay que reconstruirlo:
+
+[root@server68b ~] # drbdadm -v up mxxx
+drbdsetup new-resource xx3 1 --auto-promote=no
+drbdsetup new-minor xxx 6 0
+new-minor particion 6 0: sysfs node '/sys/devices/virtual/block/drbd6' (already? still?) exists
+particion: Failure: (161) Minor or volume exists already (delete it first)
+Command 'drbdsetup new-minor particion 6 0' terminated with exit code 10
+
+
+[root@server68b ~] # drbdadm -v down particion         
+drbdsetup down particion
+
+Limpiar
+
+[root@server68b ~] # drbdadm -v wipe-md particion
+drbdmeta 6 v09 /dev/disk/by-id/ata-WDC_WD10EZEX-00BBHserver_WD-WCC6Y6ENDUL3-part1 internal wipe-md
+ 
+Do you really want to wipe out the DRBD meta data?
+[need to type 'yes' to confirm] yes
+ 
+Wiping meta data...
+DRBD meta data block successfully wiped out.
+[root@server68b ~] # dd if=/dev/zero of=/dev/sda5 bs=1M count=512
+512+0 registros leídos
+512+0 registros escritos
+536870912 bytes (537 MB) copiados, 0,11086 s, 4,8 GB/s
+
+[root@server68b ~] # drbdadm -v create-md particion
+[root@server68b ~] # drbdadm -v up particion   
+[root@server68b ~] # drbdadm status particion
+
+Esperar
+------------------------------------------------------------------------------------
+
+Placa Madre:
+strix z690-a no es compatible con centos7
+
+------------------------------------------------------------------------------------
+
+if [ -f /etc/bash_completion ]; then
+    . /etc/bash_completion
+fi
+
+[root@app-back01a ~] # cat /etc/bash_completion.d/
+authselect-completion.sh  bpftool                   redefine_filedir          vdostats                  
+[root@app-back01a ~] # cat /etc/bash_completion.d/
+[root@app-back01a ~] # rpm -q bash-completion
+bash-completion-2.11-5.el9.noarch
+
+mcedit ~/.bashrc
+source .bashrc luego de editar
+------------------------------------------------------------------------------------
+
+Backup:
+
+app-front01a:
+/var/www/public_html
+
+app-back01a:
+/home/envios/src_backend
+/home/envios/prod
+/home/envios/deploy.sh
+------------------------------------------------------------------------------------
+
+Monitorear:
+
+Servidor: app-front01a app-front01b 
+nignx.service
+
+Servidor: app-back01a app-back01b 
+envios.service
+------------------------------------------------------------------------------------
+
+v5backend:
+Se agrega el chequeo nginx en el backend para que levante cuando esta como primario,  se preuba y funciona correctamente
+Se agrega el servicio envios.service para que levante cuando esta como primario, se preuba y funciona correctamente
+Cheques finales con usuario3 O.
+
+Se chequean los clientes de bases pesadas, se reportan y suspenden los coorespondientes.
+Se chequean los clientes de gastones, se reportan y suspenden los coorespondientes.
+
+------------------------------------------------------------------------------------
+
+Error servicio taz:
+
+systemctl restart taz.service
+
+------------------------------------------------------------------------------------
+Error de collectd:
+edite el archivo de colletc y le agregue esto:
+LoadPlugin write_log
+
+/etc/collectd.conf
+
+y reinicie el servicio
+------------------------------------------------------------------------------------
+
+Carga alta:
+LOAD load
+
+ver si esta infectada con wordfence
+	
+Ataque no parece ser porque solo hay 37 peticiones por segundo en el servidor
+
+Lo que pasa es que hay 2300 procesos corriendo probablemente trabados de ese sitio
+
+Generalmente si saturan el sitio, queda como tildado y las request suben sin terminar
+
+http://server64.dominio.com/server-status
+
+de aca podes verlo mas visual
+
+Aca hay procdemiento para servidores fisicos
+
+El sitio es:
+http://wholegreen.com.ar
+
+mayormente con suspender el sitio se calma
+
+------------------------------------------------------------------------------------
+
+Actualizar mysql en dedicados:
+
+mysqlcheck --auto-repair -A
+mysqlcheck --optimize -A
+systemctl stop mysqld;  yum -y install https://dev.mysql.com/get/mysql80-community-release-el7-11.noarch.rpm ; rpm --import /etc/pki/rpm-gpg/RPM-GPG-KEY-mysql* ; yum-config-manager --disable mysql80-community >/dev/null ; yum-config-manager --enable mysql57-community >/dev/null ; colordiff -BbU1 /etc/yum.repos.d/mysql-community.repo /etc/yum.repos.d/mysql-community.repo.rpmsave ; rm -vf /etc/yum.repos.d/mysql-community.repo.rpmsave ; yum -y update mysql-community* ; cd ;  systemctl start mysqld ; mysql_upgrade ; systemctl restart mysqld ; systemctl status mysqld ; mysql -V
+
+------------------------------------------------------------------------------------
+
+Agregar un disco ssd para migrar home:
+
+fdisk /dev/sda
+g
+n
+w
+
+mkfs.xfs /dev/sda -L home
+
+mkdir /mnt/homenuevo
+mount /dev/sda1 /mnt/homenuevo
+
+rsync -aAXv /home/ /mnt/homenuevo/
+
+------------------------------------------------------------------------------------
+
+Atascado en el grub: En vez de bootear, ingresar con la letra e
+
+e
+init=/bin/bash
+ro, rw
+
+cambiarlo a escritura, de ro a rw
+
+N8N:
+root
+
+drwx------ 2 bkoff bkoff 4096 ago  1 15:39 bkoff
+
+------------------------------------------------------------------------------------
+
+DRBD: 
+
+Sacar cambio drbd de los dos servidores n8n y front
+
+Agregar drbd:
+
+Agregar placa de red
+/etc/udev/rules.d/70-persistent-ipoib.rules 
+
+nmcli connection modify lan0 ipv4.method manual
+nmcli connection modify "Wired connection 1" connection.id lan0
+
+nmcli connection modify lan0 \
+  ipv4.addresses 192.168.100.1/24 \
+  ipv4.method manual
+
+nmcli connection modify lan0 connection.interface-name lan0
+
+------------------------------------------------------------------------------------
+
+DRBD:
+
+drbdsetup down particion
+
+systemctl disable drbd@particion.target
+wipefs -a /dev/sdb
+sgdisk --zap-all /dev/sdb
+parted /dev/sdb --script mklabel gpt mkpart primary 0% 100%
+
+lvchange -an /dev/VG1/home
+lvchange -an /dev/VG1/www
+lvremove -y /dev/VG1/home
+lvremove -y /dev/VG1/www
+
+http://docs-iti.dat/display/ITLIN/Instalacion+DRBD+en+AlmaLinux+8+y+9
+
+drbdadm wipe-md particion
+
+
+usuario7  
+9:56 AM
+http://docs-iti.dat/display/ITLIN/DRBD+Instalacion+y+dificultades
+usuario7  
+9:58 AM
+[root@app-front01b /etc/drbd.d] # net
+net-snmp-create-v3-user  netstat                  
+[root@app-front01b /etc/drbd.d] # nm
+nm         nm-online  nmap       nmcli      
+[root@app-front01b /etc/drbd.d] # nmap -p 9002 localhost
+Starting Nmap 7.92 ( https://nmap.org ) at 2025-08-04 09:58 -03
+Nmap scan report for localhost (127.0.0.1)
+Host is up (0.000024s latency).
+Other addresses for localhost (not scanned): ::1
+
+PORT     STATE  SERVICE
+9002/tcp closed dynamid
+
+------------------------------------------------------------------------------------
+
+Copiar por scp al backup
+
+En el origen:
+ssh-keygen -t ed25519
+cat /root/.ssh/id_ed25519.pub
+
+Y copiamos su contenido al destino
+mcedit /root/.ssh/authorized_keys
+
+En el origen probamos:
+ssh -i ~/.ssh/id_ed25519 -v root@xxx.xx.xx.xx
+y si conecta funciona, sino esta mal cargada la lalve
+
+agregar el script de backup a crontab -e
+editarle las ip backup.sh
+
+0 23 * * * /usr/local/bin/backup.sh
+------------------------------------------------------------------------------------
+
+ERR_CONNECTION_REFUSED 
+Ver el dominio en logs de apache httpd
+/scripts/fixlostvhost -d DOMINIO
+
+------------------------------------------------------------------------------------
+
+Recupear info de backups clientes afectados
+http://docs-iti.dat/pages/viewpage.action?pageId=592478212
+
+------------------------------------------------------------------------------------
+Instalacion de software a empleados desde guardiatecnica3:
+http://docs-iti.dat/pages/viewpage.action?spaceKey=HDID&title=Instalacion+de+Soft+adicional
+
+------------------------------------------------------------------------------------
+
+Instalar collectd
+
+Generar 3 archivos
+/etc/collectd.conf
+/etc/collecd.d/collectd.conf
+/etc/collecd.d/graphite.conf
+
+Sacarlos de app-front01a y b
+
+------------------------------------------------------------------------------------
+
+Analizar disco lleno 
+
+du -hxd1 / | sort -h
+
+du -hxd1 /var | sort -h
+
+------------------------------------------------------------------------------------
+Logs de exim
+
+journalctl -u exim -f
+
+journalctl -u exim -f | grep sudo
+
+Version de exim
+
+/opt/exim/bin/exim -bV
+ 
+------------------------------------------------------------------------------------
+
+Si falla el mfs mount MFS enviaapp verificar fstab
+tirar ll en los puntos de montaje hasta que demos con la carpeta que da error o que no esta montada
+Algunas veces queda la carpeta con ? ? ????, en ese caso desmontar y volver a montar
+umount 
+mount
+------------------------------------------------------------------------------------
+
+Cambiar permisos dnsbl en la imagen:
+
+rsync -a --existing --ignore-times --no-perms --no-owner --no-group /etc/exim.bkp/dnsbl/ /etc/exim/dnsbl/
+rsync -a --existing --ignore-times --perms --owner --group /etc/exim.bkp/dnsbl/ /etc/exim/dnsb
+     
+      
+------------------------------------------------------------------------------------      
+      
+Eliminar espacio del mfs MFS
+
+./viejos_find.sh
+./viejos_delete.sh
+
+y un config viejos.cfg
+
+hace esto basicamente, busca los archivos con más de 90 dias: find /mnt/mfs//backup -maxdepth 1 -type f -name "package-.tar.gz" -mtime +90
+
+------------------------------------------------------------------------------------
+
+Alerta paquetes
+alerta-paquetes:
+
+router-management.dat
+
+Son ataques que se recibieron y alerto el router, generalmente manda un correo con mas info.
+Queda en el nagios hasta que se borran manualmente
+
+Para borrarlos manualmente:
+ssh noc@router-management.dat
+truncate -s 0 /var/log/alerta_paquetes/ip.log
+------------------------------------------------------------------------------------
+
+Instalacion de mfs:
+apt update
+apt install moosefs-client=4.57.5-1
+
+dpkg -l | grep moosefs
+
+Agregar a
+nano /etc/hosts
+xxx.xx.xx.xx mdsent00.linux.backend mdsent00
+
+systemctl daemon-reload
+
+mount -a
+
+Instalar Wazuh:
+dpkg -l auditd || apt -y install auditd
+
+curl -s https://packages.wazuh.com/key/GPG-KEY-WAZUH | gpg --no-default-keyring --keyring gnupg-ring:/usr/share/keyrings/wazuh.gpg --import
+chmod 644 /usr/share/keyrings/wazuh.gpg
+echo "deb [signed-by=/usr/share/keyrings/wazuh.gpg] https://packages.wazuh.com/4.x/apt/ stable main" | tee -a /etc/apt/sources.list.d/wazuh.list
+apt update
+dpkg --get-selections | grep wazuh
+WAZUH_AGENT_NAME="$(hostname -s)" WAZUH_AGENT_GROUP="Entregabilidad" WAZUH_MANAGER="xxx.xx.xx.xx" apt install wazuh-agent=4.12.0-1
+systemctl enable --now wazuh-agent & tail -F /var/ossec/logs/ossec.log
+
+echo "wazuh-agent hold" | dpkg --set-selections
+service wazuh-agent status
+
+Pasarle la version como parametro
+
+------------------------------------------------------------------------------------
+lab de entregabilidiad
+
+PMTA:
+pmtserver1mst no tiene problemas para hacer una copia con clonezilla
+pmtserver1slv es un lvm y no se puede realizar la copia con clonezilla
+------------------------------------------------------------------------------------
+Reemplazar archivo con sed y no escribir:
+Esto imprime el archivo con el reemplazo
+
+sed 's|^#; exim_valiases_type = { file , db }|exim_valiases_type="db"|' /etc/panel/services.conf | grep valiases
+sed -i LO REEMPLAZA
+------------------------------------------------------------------------------------
+
+
+Cambio de disco de /backup sdd
+
+Error de smart SMARTD
+Primero chequear sata y molex, reiniciar y fijarse que este en secundario ya que dattasites funciona con drbd.
+Sacar ID con smartctl -a /dev/sbd
+
+systemctl stop keepalived.service
+systemctl disable keepalived.service
+
+
+Si no funciona sacar el id del disco con
+blkid
+/dev/sdb1: UUID="cff955f9-f8da-4e52-826e-e6e177ec95a6" TYPE="ext4" 
+
+Comentar el fstab asi no arranca booteando.
+
+Como no estaba en drbd, este montaba directamente por fstab y no estaba en ningun recurso
+Pedirle a los chicos de noc que dejen rackeado y conectado un disco.
+
+Instalar screen y ddrescue:
+yum install -y epel-release
+yum --disablerepo="*" --enablerepo="epel" install -y ddrescue
+
+Crear un screen:
+screen -S nombre del screen
+
+Ejecutar en el screen:
+ddrescue -f -n /dev/sdb /dev/sde ddrescue.log
+
+IMPORTANTE: Si dice que tarda 90 dias, dejarlo igual. Tarda un dia y medio aprox, pero al estar rackeado puede estar pasandose tranquilo
+
+Volver a conectarse al screen:
+screen -r clon_sdb_sde
+
+Cuando finalizo, retiramos el disco y ajustamos /etc/fstab con
+blkid
+
+Volver a prender y habilitar el keepalived
+
+------------------------------------------------------------------------------------
+
+Convertir a iso desde una imagen en clonezilla alojada en el cloud:
+mkisofs
+sudo apt install mkisofs
+
+mkisofs -o laba300.iso -V "laba300" -J -R carpeta/
+
+------------------------------------------------------------------------------------
+Hay un script para borrar espacio en los MFS
+
+------------------------------------------------------------------------------------
+
+Buscar backups de cuentas migradas en:
+
+ cd /home/backup/transfer/
+
+Fixear los permisos del usuario:
+
+/scripts/fixperms server491076
+/scripts/fixmaildb.php -u server491076
+/scripts/fixallmailusers.php -d server491076
+  
+  
+https://back.empresa.com/servicios/cuentasHosting#
+
+Ver que le paso a la cuenta: acciones de la cuenta 
+
+server651245 > Ver acciones
+------------------------------------------------------------------------------------
+
+Actualizar certificado envios (se actualizan solos, es informacion. Solo hay que copiarlos con scp)
+
+http://docs-iti.dat/display/HDID/Certificado+SSL+Wildcard+*.envios.com
+
+filtrar contenedores docker por una palabra, esto busca dentro del contenedor
+
+docker ps -q | xargs -I {} sh -c 'echo "===== {} ====="; docker exec {} grep -R "qa.envios" /etc 2>/dev/null'
+
+
+scp 1:/etc/letsencrypt/live/envios.com/privkey.pem envia-staging01:/var/lib/docker/volumes/traefik_certs/_data/envios.com.key
+scp 2:/etc/letsencrypt/live/envios.com/cert.pem envia-staging01:/var/lib/docker/volumes/traefik_certs/_data/envios.com.crt
+scp 3:/etc/letsencrypt/live/envios.com/chain.pem envia-staging01:/var/lib/docker/volumes/traefik_certs/_data/envios.com.intermediate.crt
+scp 4:/etc/letsencrypt/live/envios.com/fullchain.pem envia-staging01:/var/lib/docker/volumes/traefik_certs/_data/envios.com.bundle.crt
+
+
+------------------------------------------------------------------------------------
+Listar Versiones:
+
+nginx -v
+nginx version: nginx/1.14.1
+pm2 -v
+5.4.3
+node -v
+v16.18.1
+------------------------------------------------------------------------------------
+
+Instalar php 
+
+add-apt-repository ppa:ondrej/php -y
+apt update
+
+apt install -y php7.4 php7.4-cli php7.4-common php7.4-mbstring php7.4-xml php7.4-curl php7.4-zip php7.4-intl php7.4-bcmath
+apt install -y php7.4-fpm
+
+------------------------------------------------------------------------------------
+Servidor directus:
+
+Se prueba el pase de flotante y falla porque no se desmonta el /home.
+Quedaban servicios tomados del usuario doomantool
+
+Se edita el servicios.sh para desmontar con lazymod
+Se edita el polkit de domaintool:
+/etc/polkit-1/rules.d/50-allow-domaintool-manage-units.rules 
+
+
+Cosas para hacer en el directus:
+
+Borrar - keepalived_configure.pasoX
+
+Levantar app Marketplace:
+
+su marketplace
+cd /home/marketplace
+npm run build
+pm2 start npm --name marketplace -- start
+pm2 save
+pm2 startup
+
+Para el rebuild:
+pm2 stop 1; sleep 3; npm run build; pm2 start 1
+
+
+systemctl start directus.service ac-cloud.service backendada13.service certapps.service directus_micuenta.service wsapps.service nginx.service envios.service domaintool.service
+
+------------------------------------------------------------------------------------
+Cambios hechos en envia-cnt1 y cnt2
+
+Estaba:
+chmod 644 /var/log/clicks/clicks.log
+
+Se ejecuta:
+chmod 666 /var/log/clicks/clicks.log
+
+------------------------------------------------------------------------------------
+
+Failed to add /run/systemd/ask-password to directory watch: No space left on device
+
+
+No hay espacio en el servidor, pero si hay
+
+este tiene el maximo de vistas de usuarios: (con este alcanza)
+
+/proc/sys/fs/inotify/max_user_watches
+
+con estos ves cuantos estan en uso:
+
+lsof | wc -l
+
+modificar el maximo:
+
+sysctl -w fs.inotify.max_user_watches=524288
+
+en base a instancias de servicios:
+
+sysctl -w fs.inotify.max_user_instances=1024
+
+este por eventos:
+
+sysctl -w fs.inotify.max_queued_events=16384
+
+
+------------------------------------------------------------------------------------
+
+Crear archivo para generar persistencia:
+
+[root@ ~] #  echo "fs.inotify.max_user_watches=524288" > /etc/sysctl.d/99-inotify.conf
+[root@ ~] # 
+[root@~] #  sysctl -p /etc/sysctl.d/99-inotify.conf
+fs.inotify.max_user_watches = 524288
+
+
+------------------------------------------------------------------------------------
+
+scp 1:/etc/letsencrypt/live/envios.com/cert.pem envia-staging01:/var/lib/docker/volumes/traefik_certs/_data/envios.com.crt
+scp 2:/etc/letsencrypt/live/envios.com/fullchain.pem envia-staging01:/var/lib/docker/volumes/traefik_certs/_data/envios.com.bundle.crt 
+scp 3:/etc/letsencrypt/live/envios.com/chain.pem envia-staging01:/var/lib/docker/volumes/traefik_certs/_data/envios.com.intermediate.crt
+scp 4:/etc/letsencrypt/live/envios.com/privkey.pem envia-staging01:/var/lib/docker/volumes/traefik_certs/_data/envios.com.key 
+
+actualizar certificados de qa.envios
+
+
+certbot certonly --manual --manual-auth-hook /etc/letsencrypt/acme-dns-auth.py --preferred-challenges dns --debug-challenges --agree-tos --manual-public-ip-logging-ok --deploy-hook /root/LE-esmsv-deploy/letsencrypt_${dom}_deploy_hook -m iti@empresa.com -d ${dom} -d *.${dom} -d *.asset.${dom} -d *.clicks.${dom} -d *.reads.${dom} -d *.track.${dom} -d *.web.${dom}
+certbot certonly --manual --manual-auth-hook /etc/letsencrypt/acme-dns-auth.py --preferred-challenges dns --debug-challenges --agree-tos --manual-public-ip-logging-ok --deploy-hook /root/LE-esmsv-deploy/letsencrypt_emailboost.net_deploy_hook -m iti@empresa.com -d emailboost.net -d *.emailboost.net -d *.asset.emailboost.net -d *.clicks.emailboost.net -d *.reads.emailboost.net -d *.track.emailboost.net -d *.web.${dom}
+certbot certonly --manual --manual-auth-hook /etc/letsencrypt/acme-dns-auth.py --preferred-challenges dns --debug-challenges --agree-tos --manual-public-ip-logging-ok --deploy-hook /root/LE-esmsv-deploy/letsencrypt_fzsec.net_deploy_hook -m iti@empresa.com -d fzsec.net -d *.fzsec.net -d *.asset.fzsec.net -d *.clicks.fzsec.net -d *.reads.fzsec.net -d *.web.${dom}
+certbot certonly --manual --manual-auth-hook /etc/letsencrypt/acme-dns-auth.py --preferred-challenges dns --debug-challenges --agree-tos --manual-public-ip-logging-ok --deploy-hook /root/LE-esmsv-deploy/letsencrypt_emailboost.net_deploy_hook -m iti@empresa.com -d emailboost.net -d *.emailboost.net -d *.asset.emailboost.net -d *.clicks.emailboost.net -d *.reads.emailboost.net -d *.track.emailboost.net -d *.web.${dom}
+
+------------------------------------------------------------------------------------
+
+
+Running manual-auth-hook command: /etc/letsencrypt/acme-dns-auth.py
+Output from manual-auth-hook command acme-dns-auth.py:
+Please add the following CNAME record to your main DNS zone:
+_acme-challenge.asset.emailboost.net CNAME id.le-auth.empresa.com.
+
+Running manual-auth-hook command: /etc/letsencrypt/acme-dns-auth.py
+Output from manual-auth-hook command acme-dns-auth.py:
+Please add the following CNAME record to your main DNS zone:
+_acme-challenge.clicks.emailboost.net CNAME id.empresa.com.
+
+Running manual-auth-hook command: /etc/letsencrypt/acme-dns-auth.py
+Output from manual-auth-hook command acme-dns-auth.py:
+Please add the following CNAME record to your main DNS zone:
+_acme-challenge.emailboost.net CNAME id.le-auth.empresa.com.
+
+Running manual-auth-hook command: /etc/letsencrypt/acme-dns-auth.py
+Output from manual-auth-hook command acme-dns-auth.py:
+Please add the following CNAME record to your main DNS zone:
+_acme-challenge.reads.emailboost.net CNAME id.le-auth.empresa.com.
+
+Running manual-auth-hook command: /etc/letsencrypt/acme-dns-auth.py
+Output from manual-auth-hook command acme-dns-auth.py:
+Please add the following CNAME record to your main DNS zone:
+_acme-challenge.track.emailboost.net CNAME id.le-auth.empresa.com.
+
+Running manual-auth-hook command: /etc/letsencrypt/acme-dns-auth.py
+Output from manual-auth-hook command acme-dns-auth.py:
+Please add the following CNAME record to your main DNS zone:
+_acme-challenge.web.emailboost.net CNAME idle-auth.empresa.com.
+
+Running manual-auth-hook command: /etc/letsencrypt/acme-dns-auth.py
+Waiting for verification...
+
+
+------------------------------------------------------------------------------------
+Cambiar de enviaapp01 / 02 el sitio v4.esmsv.com
+
+mcedit /etc/httpd/vhosts/vhosts-app/v4.esmsv.com.conf
+
+------------------------------------------------------------------------------------
+
+
+Weboss OSS cambio de disco por errores SMART S.M.A.R.T: 
+
+En este caso sdb- 
+
+[root@weboss271 ~] # lsblk
+NAME        MAJ:MIN RM   SIZE RO TYPE MOUNTPOINT
+sda           8:0    0 931,5G  0 disk 
+├─sda1        8:1    0   200M  0 part /boot
+├─sda2        8:2    0     8G  0 part [SWAP]
+├─sda3        8:3    0    30G  0 part /
+└─sda4        8:4    0 893,3G  0 part 
+  └─ssd_1_5 253:4    0 893,3G  0 dm   /mnt/chunk15
+sdb           8:16   0 111,8G  0 disk 
+├─sdb1        8:17   0  22,4G  0 part 
+�?└─ssd_1_1 253:0    0 931,5G  0 dm   /mnt/chunk11
+├─sdb2        8:18   0  22,4G  0 part 
+�?└─ssd_1_2 253:1    0 931,5G  0 dm   /mnt/chunk12
+├─sdb3        8:19   0  22,4G  0 part 
+�?└─ssd_1_3 253:2    0 931,5G  0 dm   /mnt/chunk13
+├─sdb4        8:20   0     1K  0 part 
+├─sdb5        8:21   0  22,4G  0 part 
+�?└─ssd_1_4 253:3    0 931,5G  0 dm   /mnt/chunk14
+└─sdb6        8:22   0  22,4G  0 part 
+  └─ssd_1_5 253:4    0 893,3G  0 dm   /mnt/chunk15
+sdc           8:32   0 931,5G  0 disk 
+└─sdserver        8:33   0 931,5G  0 part 
+  └─ssd_1_1 253:0    0 931,5G  0 dm   /mnt/chunk11
+sdd           8:48   0 931,5G  0 disk 
+└─sdd1        8:49   0 931,5G  0 part 
+  └─ssd_1_2 253:1    0 931,5G  0 dm   /mnt/chunk12
+sde           8:64   0 931,5G  0 disk 
+└─sde1        8:65   0 931,5G  0 part 
+  └─ssd_1_3 253:2    0 931,5G  0 dm   /mnt/chunk13
+sdf           8:80   0 931,5G  0 disk 
+└─sdf1        8:81   0 931,5G  0 part 
+  └─ssd_1_4 253:3    0 931,5G  0 dm   /mnt/chunk14
+[root@weboss271 ~] # 
+
+
+lsblk -o +MODEL,SERIAL,HCTL,ROTA
+
+Si es 1 es mecanico
+Si es 0 es SSD
+
+SDB tiene el mismo chunk, disco de 240 ssd y copiar la tabla de particiones
+bajar servicio flashcache, desmontar 
+
+
+conectar un disco por USB y copiar tabla de particiones
+
+------------------------------------------------------------------------------------
+
+remover mycli
+
+CREATE USER 'performance_eval'@'%' IDENTIFIED BY 'XxxX';
+
+Obtener lista de clouds:
+for i in yogserver01 novserver01 stack01; do 
+  for j in alma8-uefi-fz centos7-64-fz alma8-uefi-mysql57-fz centos6-64-fz centos5-64-fz; do 
+    ssh -qt "$i" "/scripts/list_instances_by_image $j"; 
+  done; 
+done > listacloud_completa.txt
+
+
+instalar libreria mysql
+
+wget https://repo.mysql.com/yum/mysql-5.7-community/el/7/x86_64/mysql-community-libs-5.7.44-1.el7.x86_64.rpm
+
+rpm2cpio mysql-community-libs-5.7.44-1.el7.x86_64.rpm | cpio -idmv
+
+cd ./usr/lib64/mysql/
+cp libmysqlclient.so.20* /usr/lib64/
+
+
+ls -l /lib64/libmysqlclient.so.20*
+rm -f /lib64/libmysqlclient.so.20
+ln -s libmysqlclient.so.20.3.22 /lib64/libmysqlclient.so.20
+ldconfig
+
+systemctl restart exim.service
+
+------------------------------------------------------------------------------------
+
+
+Unificacion de archivo de nginx en directus para envia
+/etc/nginx/conf.d/envios.com.conf
+
+------------------------------------------------------------------------------------
+
+OLLAMA
+
+Environment="OLLAMA_HOST=0.0.0.0:11434"
+
+------------------------------------------------------------------------------------
+
+Aplicar paps de panel
+
+1- Ver que es lo que tocan para probar
+
+2- Solo se aplica en la flotante
+
+3- /scripts/updatefzservice.php -c
+
+4- /scripts/updatefzservice.php -u
+
+Solo hacer 2 en paralelo
+
+Para la imagen de compartidos (imagended 192.168.2.199), si da error de licencia de panel hay que editar el archivo /etc/panel/server.conf, y cambiar la línea que dice
+
+  SERVER_TYPE="DEDICATED-HOSTING"
+Por shared hosting, o sea:
+
+  SERVER_TYPE="SHARED-HOSTING"
+Después ejecutar el script flr:
+
+/scripts/php5 /scripts/flr
+Y ahora si se puede correr el PaP. Después hay que volver atrás
+
+------------------------------------------------------------------------------------
+
+Si se llena el disco, la particion /sda o se ve un erro asi:
+
+Host: server74b..backend
+Service: Disk Space
+Status: CRITICAL
+Last check: 2025-12-24 14:06:12
+Duration: 56m 42s
+Attempt: 3/3
+Status infor on: DISK CRITICAL - free space: / 91 MiB (0.52% inode=86%): /opt/ai-bolit 91 MiB (0.52% inode=86%): /opt/alt 91 MiB (0.52% inode=86%): /opt/app-version-detector 91 MiB (0.52% inode=86%): /opt/cloudlinux 91 MiB (0.52% inode=86%): /opt/cloudlinux-linksafe 91 MiB (0.52% inode=86%): /opt/cpanel 91 MiB (0.52% inode=86%): /opt/i360_pam_imunify 91 MiB (0.52% inode=86%): /opt/i360_wafd_imunify 91 MiB (0.52% inode=86%): /opt/imunify360 91 MiB (0.52% inode=86%): /opt/imunify360-webshield 91 MiB (0.52% inode=86%): /opt/plesk 91 MiB (0.52% inode=86%): /opt/rh 91 MiB (0.52% inode=86%):
+
+Reiniciar servicio php o alguno que este ocupando mucho en /tmp con
+du -sh /tmp/* 2>/dev/null | sort -hr | head -20
+
+o borrar logs viejos en /var/logs
+
+------------------------------------------------------------------------------------
+
+Si no se puede reiniciar el nginx por un archivo, verificar si existe la cuenta de hosting, sino borrarla
+
+mv /etc/nginx/sites-customers/conf/premoldeadosdeltigre.com.conf /root/Baks/
+
+------------------------------------------------------------------------------------
+
+[root@server74a ~] # imunify360-agent blacklist ip add 1.0/24 --comment "Ataque a a.com"
+[root@server74a ~] # imunify360-agent blacklist ip add 1.0/24 --comment "Ataque a a.com"
+[root@server74a ~] # imunify360-agent blacklist ip add 1.0/24 --comment "Ataque a a.com"
+```
+
+horus
+
+```bash
+cd /mnt/horus-data/data/general/etc/servers/
+cp prox06.cfg prox02.cfg
+mcedit prox02.cfg
+# Reemplazar todas las ocurrencias de server por server2
+```
+
+Tener en cuenta que los plugins no son lo mismo para centos que alma
+sudo /usr/lib/nagios/plugins/check_smart.sh
+
+---
+
+## �?2. Verificar configuración antes de recargar
+
+```bash
+run-in-instance ${INSTANCIA} /check-config | grep -i Error
+# Ejemplo:
+run-in-instance general /check-config | grep -i Error
+```
+
+Si hay errores, corregirlos. Luego recargar:
+
+```bash
+run-in-instance ${INSTANCIA} /reload-config
+# Ejemplo:
+run-in-instance general /reload-config
+```
+
+http://horus.linux.backend:5080/thruk/cgi-bin/status.cgi?host=adminpmta
+
+---
+
+Si no puede desmontar el home
+
+
+[root@server71b ~] # lsof | grep backup
+screen    20267          root  cwd   unknown                                         /home/backup/cpanel/server710857/backup-6.18.2025_16-04-40_victorsacom/homedir/mail/victorsa.com.py (stat: Operation not permitted)
+bash      20272          root  cwd   unknown                                         /home/backup/cpanel/server710857/backup-6.18.2025_16-04-40_victorsacom/homedir/mail/victorsa.com.py (stat: Operation not permitted)
+[root@server71b ~] # kill -9 20267
+[root@server71b ~] # kill -9 20272
+
+La carpeta /var/log/ no se sincroniza
+
+servidor queda en grub, entrar con init=/bin/bash
+
+
+du -bsh * | sort -n
+
+systemctl list-units --failed
+
+--------------------------------------------------------------------------------------------------
+
+
+for para recorrer servidores:
+
+for i in {130..136}; do
+  host="c$i"
+  echo "===== $host ====="
+  ssh -o BatchMode=yes -o ConnectTimeout=5 "$host" "cat /etc/cron.d/keepalived.cron"
+done
+
+
+a y b
+
+for i in {260..279}; do
+  for suf in a b; do
+    host="c${i}${suf}"
+    echo "===== $host ====="
+    ssh -o BatchMode=yes -o ConnectTimeout=5 "$host" "cat /etc/cron.d/keepalived.cron"
+  done
+done
+
+
+-------------------------------------------------
+
+
+Host: server02-dr.dominio.com
+Service: HTTP
+Status: CRITICAL
+Last check: 2026-03-17 12:44:26
+Duration: 2h 05m 39s
+Attempt: 3/3
+Status infor on: connect to address server02-dr.dominio.com and port 80: Connection refused
+
+
+Si no funciona con restart, darle stop y start al apache
+
+-------------------------------------------------
+
+Placa de wan no tiene link, no funciona ifup ifdown
+
+ethtool -s wan0 autoneg off speed 1000 duplex full
+
+-------------------------------------------------
+
+El sistema operativo entra en emergency mode:
+
+Connectarlo a un finnix y ejecutar estos chequeos (verificar si es ext4)
+
+fsck.ext4 -fCy /dev/sda4 
+fsck.ext4 -fCy /dev/sda6
+fsck.ext4 -fCy /dev/sda7 
+
+Si eso no funciona, entrar con la password de compartidos y ejecutar:
+
+tail -n lod /var/log/bootlog
+ahi nos dice, por ejemplo, tmp cannot be mounted
+Entonces deducimos que no tiene sistema de archivos
+Ejecutamos:
+lsblk -f 
+y nos damos cuenta que famta /tmp y el id con letras caracteristico label o UUID xxxxx
+Ejecutamos:
+mkfs ext4 /dev/sda5
+y nuevamente
+lsblk -f
+
+reboot
+
+-------------------------------------------------
+Actualizar antrigravity 
+
+ssh guardiatecnica3
+ssh ssh usuario-vpn.dat
+apt install antigravity
+
+-------------------------------------------------
+
+Error de usuario6, no se ven los mails ni las carpetas
+Error en el panel de panel
+
+/scripts/fixperms
+-------------------------------------------------
+Error imunify no arranca
+
+rpm -qa | grep -i imunify
+yum downgrade imunify-antivirus-8.7.2-1 imunify-antivirus-generic-8.7.2-1
+
+-------------------------------------------------
+Migrar bacshrc profile
+
+scp -p graylog01:/root/.bashrc .
+scp -p graylog01:/root/.bash_profile .
+scp -p graylog01:/etc/bashrc .
+scp -p graylog01:/root/graylog-plugin-slack-3.1.0.jar .
+
+
+scp -p graylog01:/root/.bashrc graylog01b:/root/
+scp -p graylog01:/root/.bash_profile graylog01b:/root/
+scp -p graylog01:/etc/bashrc graylog01b:/etc/
+scp -p graylog01:/root/graylog-plugin-slack-3.1.0.jar graylog01b:/root/
+
+
+-------------------------------------------------
+
+  Agregar conexion de red, renombrar 
+  
+   186  2026-05-13 11:24:10 mv /etc/udev/rules.d/70-persistent-ipoib.rules /etc/udev/rules.d/70-persistent-net.rules
+  187  2026-05-13 11:24:20 dracut -f
+  188  2026-05-13 11:24:30 rebooooot
+  189  2026-05-13 11:24:34 reboot
+  190  2026-05-13 11:25:24 ip a
+  191  2026-05-13 11:25:31 ip link show
+  192  2026-05-13 11:25:38 nmcli connection show
+  193  2026-05-13 11:26:22 cat /etc/udev/rules.d/70-persistent-net.rules 
+  194  2026-05-13 11:26:29 mcedit /etc/udev/rules.d/70-persistent-net.rules 
+  195  2026-05-13 11:27:38 rm -f /etc/udev/rules.d/70-persistent-net.rules
+  196  2026-05-13 11:27:51 vi /etc/systemd/network/10-bkl0.link
+  197  2026-05-13 11:28:46 vi /etc/default/grub
+  198  2026-05-13 11:29:41 grub2-mkconfig -o /boot/efi/EFI/almalinux/grub.cfg
+  199  2026-05-13 11:30:09 vi /etc/default/grub
+  200  2026-05-13 11:31:19 cat /etc/default/grub
+  201  2026-05-13 11:31:43 grub2-mkconfig -o /boot/grub2/grub.cfg
+  202  2026-05-13 11:31:55 grub2-mkconfig -o /boot/efi/EFI/almalinux/grub.cfg
+  203  2026-05-13 11:32:19 dracut -f
+  204  2026-05-13 11:32:31 nmcli connection modify bkl0 connection.interface-name bkl0
+  205  2026-05-13 11:32:35 reboot
+  206  2026-05-13 11:33:17 ip a
+  207  2026-05-13 11:33:29 nmcli connection show
+  208  2026-05-13 11:33:38 nmcli connection up bkl0
+  209  2026-05-13 11:33:54 nmcli connection show
+  210  2026-05-13 11:34:37 ip a
+  211  2026-05-13 11:34:39 nmcli connection show
+  212  2026-05-13 11:35:26 nmcli -f ipv4 connection show "Wired connection 1"
+  213  2026-05-13 11:35:33 nmcli -f ipv4 connection show "Wired connection 2"
+  214  2026-05-13 11:35:41 nmcli -f ipv4 connection show "bkl0"
+  215  2026-05-13 11:35:43 clear
+  216  2026-05-13 11:38:36 nmcli connection modify bkl0 ipv4.addresses xxx.xx.xx.xx/16
+  217  2026-05-13 11:38:38 nmcli connection modify bkl0 ipv4.gateway xxx.xx.xx.xx
+  218  2026-05-13 11:38:40 nmcli connection modify bkl0 ipv4.dns "xxx.xx.xx.xx 8.8.8.8"
+  219  2026-05-13 11:38:43 nmcli connection modify bkl0 ipv4.dns-search "linux.backend dattaweb.com"
+  220  2026-05-13 11:38:46 nmcli connection modify bkl0 ipv4.method manual
+  221  2026-05-13 11:38:50 nmcli connection up bkl0
+  222  2026-05-13 11:38:53 ip a
+  223  2026-05-13 11:39:12 clear
+  224  2026-05-13 11:39:12 ls
+  225  2026-05-13 11:39:18 ping -c 2 8.8.8.8
+  226  2026-05-13 11:39:19 ping -c 2 google.com
+  227  2026-05-13 11:39:34 nmcli connection delete "Wired connection 1"
+  228  2026-05-13 11:39:36 nmcli connection delete "Wired connection 2"
+nmcli connection modify bkl0 ipv4.addresses xxx.xx.xx.xx
+nmcli connection modify bkl0 ipv4.gateway xxx.xx.xx.xx
+nmcli connection modify bkl0 ipv4.dns "xxx.xx.xx.xx"
+nmcli connection modify bkl0 ipv4.dns-search "linux.backend dattaweb.com"
+nmcli connection modify bkl0 ipv4.method manual
+
+
+---------------------------------------------------------
+
+Crear acceso a Git desde un servidor
+http://git:81/
+
+Loguearse con el usuario
+su - usuario
+
+Crear la clave publica
+ssh-keygen -t rsa -b 4096
+
+
+--------------------------------------------
+
+NO bootea porque no tiene fstab
+
+mkdir/mnt/sysimage
+
+mount /dev/sda4 /mnt/sysimage
+mc
+
+for i in /dev (dev/pts /proc /sys /run; do mount $i /mnt/sysimage$i; done
+chroot /mnt/sysimage
+
+df
+mount /boot 
+mount /boot/efi
+
+delete el initframs.bak 
+
+ll
+
+dracut -f
+regenerar initramfs
+lsblk -o +UUID
+
+df umount /boot/efi
+
+cd ..
+cd ..
+cd ..
+
+umount/boot
+
+lsof /boot
+
+umount7sys/frimware/efi/efivars
+
+ip a show
+
+ip a add pi2/24 dev enp5s0
+
+ip route add default via ip
+
+passwd 
+usuario
+
+systemct start sshd
+
+-------------------------------------------------
+Ver apps vulneradas en node:
+
+npm audit --omit=dev
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

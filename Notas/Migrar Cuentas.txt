@@ -1,0 +1,106 @@
+----------------------------------------------Migrar cuentas----------------------------------------------
+
+-> Verificar que servidores tiene mas espacio libre:
+for i in c{130..278};do echo $i ; ssh $i df -hT | grep "/Mails";done
+o
+for i in c{130..278};do echo $i ; ssh $i df -hT | grep "/dev/mapper/VG2-home";done
+o
+for i in c{130..278};do echo $i ; ssh $i df -hT | grep "/Mails\|/dev/mapper/VG2-home";done
+
+-> Verificar que el destino de backup tenga espacio si es que tiene plan de BACKUPS:
+
+
+Para ver cuentas mas pesadas en servidor origen:
+./verCuentasPesadas.sh --mails -n 40
+o
+./verCuentasPesadas.sh --home -n 40
+
+En servidor origen: 
+/scripts/get_account_param.php -u 'jt000143' -p 'has_daily_backup_plan' -s
+0 -> no tiene plan de backups
+1 -> tiene plan de backups
+
+En servidor bkp de destino verificamos:
+bkp14 -> df -hT
+bkp014 ->
+# zpool status
+# zpool list
+
+./datos.sh portal14 
+-> Verificar que tenga los DNS en empresa preferentemente.
+
+-> Verificar si esta o no en el mismo mysql, ya que al borrar la cuenta se borrara su base de datos.
+En lo preferible migrar por fuera del mismo servidor de mysql.
+esto lo dice la pantalla de incio del ssh
+
+-> Verificar que si tiene bases de datos este en la misma version de Mysql (5.7/8.0)
+mysql --version
+
+------
+
+# Habilitar en el destino el rsync con false en el parametro allowed-commands.sh
+sudo chattr -i /root/.ssh/allowed-commands.sh
+mcedit /root/.ssh/allowed-commands.sh
+
+#--------------------------------------------------------------------
+# SERVIDOR ORIGEN
+# Para ver la info del usuario y ver la cantidad de espacio consumido, para ver si tenemos que excluir algo. *tomamos como mucho consumo, +4GB
+./datos.sh DOMINIO O USUARIO
+# Realizamos un backup hacia MFS, excluyendo contenido muy pesado
+## Excluimos segun corresponda:
+### --exclude-public
+### --exclude-mails
+## EJEMPLO:
+### BACKUP
+
+/scripts/pkgacct_panel jt000143 /home/backup/transfer/  --exclude-mails
+
+# SERVIDOR DESTINO
+## Restauramos el backup realizado en el paso anterior
+/scripts/restorefrompackage_panel s1000356 /home/backup/MFS/servidorviejo/backup/transfer/ F usuario@empresa.com
+## EJEMPLO:
+### RESTORE
+
+/scripts/restorefrompackage_panel jt000143 /home/backup/MFS/server02/backup/transfer/ F usuario4.delrosso@empresa.com
+
+# SERVIDOR ORIGEN
+## Migro el contenido excluido según parámetros anteriores:
+### Si se excluyo public_html
+rsync -avSH /home/USUARIO/public_html/ ServidorDestino:/home/USUARIO/public_html/
+### Si se excluyo mail
+rsync -avSH /home/USUARIO/mail/ ServidorDestino:/home/USUARIO/mail/
+
+### EJEMPLO:
+rsync -avSH /home/jt000143/mail/ xxx.xx.xx.xx:/home/jt000143/mail/
+
+### Re-ejecuto el rsync y veo que finalizo correctamente.
+### Ejecuto en ambos servidores y verifico que los pesos sean similares.
+./datos.sh s1000356
+
+#---------------------------------------------
+#FINAL:
+
+#Actualizar en back informacion del servidor de la cuenta de hosting.
+#cambiar el servidor origen por el destino
+
+# SERVIDOR DESTINO
+## Fixear quota:
+/scripts/setquota -u s1000356 --fix
+## Volver a true y corregir permisos
+
+mcedit /root/.ssh/allowed-commands.sh
+chattr +i /root/.ssh/allowed-commands.sh
+
+# SERVIDOR ORIGEN
+## Borrar cuenta:
+### Si es Distinto mysql
+/scripts/removeuser jt000143 --total
+
+### si es Mismo mysql
+/scripts/removeuser jt000143 --local --skip-remove-edb /home/pz000545/
+### Borrar carpeta de mail
+rm -rf /Mails/fservidor0179/
+
+
+--------------------------------------------------------------------------------------------
+

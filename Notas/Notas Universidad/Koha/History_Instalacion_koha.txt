@@ -1,0 +1,161 @@
+    1  nano /etc/ssh/sshd_config
+    2  systemctl restart ssh
+    3  passwd root
+    4  systemctl restart ssh
+    5  systemctl restart sshd
+    6  ip a
+    7  nano /etc/netplan/00-installer-config.yaml 
+    8  netplan apply
+    9  apt-get update
+   10  nano /etc/netplan/00-installer-config.yaml 
+   11  netplan apply
+   12  clear
+   13  sudo apt update
+   14  sudo apt -y install sudo wget gnupg2
+   15  koha
+   16  wget -qO - https://debian.koha-community.org/koha/gpg.asc | sudo gpg --dearmor -o /usr/share/keyrings/koha-keyring.gpg
+   17  sudo apt update
+   18  sh -c 'echo "deb [signed-by=/usr/share/keyrings/koha-keyring.gpg] https://debian.koha-community.org/koha stable main" >> /etc/apt/sources.list.d/koha.list'
+   19  echo 'deb https://debian.koha-community.org/koha 23.05 main' | sudo tee /etc/apt/sources.list.d/koha.list
+   20  sudo apt update
+   21  echo deb http://debian.koha-community.org/koha stable main | sudo tee /etc/apt/sources.list.d/koha.list
+   22  wget -O- https://debian.koha-community.org/koha/gpg.asc | sudo apt-key add -
+   23  sudo apt update
+   24  sh -c 'echo "deb [signed-by=/usr/share/keyrings/koha-keyring.gpg] https://debian.koha-community.org/koha stable main" >> /etc/apt/sources.list.d/koha.list
+   25  sh -c 'echo "deb [signed-by=/usr/share/keyrings/koha-keyring.gpg] https://debian.koha-community.org/koha stable main" >> /etc/apt/sources.list.d/koha.list'
+   26  echo 'deb https://debian.koha-community.org/koha 23.05 main' | sudo tee /etc/apt/sources.list.d/koha.list  
+   27  sudo apt update
+   28  sudo apt install koha-common
+   29  sudo apt install mariadb-server
+   30  apt install mariadb-server
+   31  nano /etc/apt/sources.list.d/*
+   32  apt install mariadb-server
+   33  sudo apt-get clean
+   34  nano /etc/apt/sources.list.d/*
+   35  apt install mariadb-server
+   36  sudo apt-get -f install
+   37  sudo dpkg --configure -a
+   38  sudo apt-get -f install
+   39  sudo apt-get -u dist-upgrade
+   40  sudo mysqladmin -u root password usuario123
+   41  sudo apt install mariadb-server
+   42  sudo apt-get remove --purge mysql-server mysql-client mysql-common
+   43  sudo apt-get autoremove
+   44  sudo apt install mariadb-server
+   45  mysqladmin -u root password pass123
+   46  sudo apt-get remove --purge mysql-server mysql-client mysql-common
+   47  sudo apt install koha-common
+   48  sudo apt -y install sudo wget gnupg2
+   49  echo deb http://debian.koha-community.org/koha stable main | sudo tee /etc/apt/sources.list.d/koha.list
+   50  sudo apt update
+   51  sudo apt install koha-common
+   52  sudo apt install mariadb-server
+   53  sudo mysqladmin -u root password newpass
+   54  sudo apt install mariadb-server
+   55  sudo apt-get -o Debug::pkgProblemResolver=yes dist-upgrade
+   56  sudo apt install mariadb-server
+   57  sudo apt-get update
+   58  sudo apt-get clean
+   59  sudo apt-get autoremove
+   60  sudo apt --fix-broken install
+   61  sudo apt-get update && sudo apt-get upgrade
+   62  sudo dpkg --configure -a
+   63  sudo apt-get install -f
+   64  sudo apt install mariadb-server
+   65  sudo apt-get install npm
+   66  reboot
+   67  sudo apt install mariadb-server
+   68  sudo apt-get remove --purge mysql-server mysql-client mysql-common
+   69  sudo apt remove mariadb-server mariadb-server-10.3 mariadb-server-core-10.3 mariadb-client mariadb-client-10.3 mariadb-client-core-10.3 mariadb-common
+   70  pt install mariadb-server
+   71  apt install mariadb-server
+   72  sudo apt-get remove --purge mysql-server mysql-client mysql-common
+   73  sudo apt install koha-common
+   74  sudo mysqladmin -u root password newpass
+   75  sudo apt install mariadb-server
+   76  sudo apt install mariadb-server mariadb-client
+   77  sudo mysqladmin -u root password usuario123
+   78  udo koha-create --create-db basededatos
+   79  sudo koha-create --create-db basededatos
+   80  nano /etc/koha/koha-sites.conf
+   81  sudo a2enmod rewrite 
+   82  sudo a2enmod cgi 
+   83  sudo systemctl restart apache2
+   84  sudo a2dissite 000-default
+   85  sudo a2enmod deflate
+   86  sudo a2ensite 
+   87  nano /etc/koha/koha-sites.conf
+   88  nano /etc/apache2/sites-enabled/test.conf
+   89  sudo systemctl restart apache2
+   90  sudo service apache2 restart
+   91  ls
+   92  cd /etc/
+   93  cd apache2/
+   94  cd sites-
+   95  cd sites-enabled/
+   96  ls
+   97  clear
+   98  ls
+   99  ll
+  100  sudo apt install koha-common
+  101  sudo koha-create --create-db TEST
+  102  ls
+  103  nanop /etc/koha/koha-sites.conf
+  104  nano /etc/koha/koha-sites.conf 
+  105  sudo a2enmod rewrite 
+  106  sudo a2enmod cgi 
+  107  sudo systemctl restart apache2
+  108  ls
+  109  sudo a2dissite 000-default
+  110  sudo a2enmod deflate
+  111  sudo a2ensite TEST
+  112  sudo a2ensite basededatos
+  113  nano /etc/koha/koha-sites.conf 
+  114  sudo a2ensite kohatest.universidad.edu.ar
+  115  nano  /etc/apache2/ports.conf
+  116  service apache2 restart
+  117  a2dissite 000-default
+  118  a2enmod deflate
+  119  2ensite library
+  120  a2ensite library
+  121  a2ensite basededatos
+  122  a2ensite TEST
+  123  sudo koha-create --create-db usuariousuario
+  124  sudo service apache2 restart
+  125  sudo a2dissite 000-default
+  126  sudo a2enmod deflate
+  127  sudo a2ensite library
+  128  sudo a2ensite usuariousuario
+  129  sudo a2dissite 000-default
+  130  sudo service apache2 restart
+  131  ls
+  132  nano usuariousuario.conf 
+  133  apt-get install mlocate
+  134  updatedb
+  135  locate locate koha-conf.xml
+  136  nano /etc/koha/sites/usuariousuario/koha-conf.xml
+  137  koha-translate --install es-ES
+  138  clear
+  139  ls
+  140  pwd
+  141  history > history_koha.txt
+
+--------------------------------------------------------------
+
+Requerimientos:
+
+Servidor:
+
+I5 -RAM 8GB- SSD 240GB
+
+Ubuntu server 22
+
+Acceso con usuario root
+
+Salida a Internet para navegar, puertos HTTP, HTTPS y DNS habilitados
+
+Acceso remoto si es posible 
+
+Solo sera accesible por la red interna 
+
+--------------------------------------------------------------

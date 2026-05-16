@@ -1,0 +1,442 @@
+----------------------------------------------------------------
+INSTALAR POSTGRES	
+----------------------------------------------------------------
+1- sudo apt install postgresql postgresql-contrib
+2- sudo systemctl start postgresql.service
+3- sudo systemctl enable postgresql.service
+4- sudo systemctl status postgresql.service
+5- sudo su - postgres
+6- psql
+7- psql --version
+
+8- Editar el archivo de postgres:
+
+nano /etc/postgresql/12/main/pg_hba.conf
+
+Buscar en Archivos_prod
+--pg_hba.conf--
+ 
+9- Editar el otro archivo de postgres 
+
+Descomentar/Escribir:
+
+nano /etc/postgresql/12/main/postgres.conf
+
+listen_addresses = '*'
+
+-----------------------------------
+Comandos PostgreSql
+
+\l listar
+\q salir
+
+-----------------------------------
+Error: psql: FATAL: could not write init file
+
+Verificar el espacio en disco
+
+df -h (Ver espacio en disco)
+du -bsh* (Ver el espacio ocupado de cada archvo en el directorio actual)
+
+-----------------------------------
+Recuperar contraseña Postgres 
+-----------------------------------
+
+https://stackoverflow.com/questions/12720967/how-to-change-postgresql-user-password 
+
+1- Editar la siguiente linea del pg_hba.conf:
+
+/etc/postgresql/12/main/pg_hba.conf
+
+local   all             all                     peer ----> Cambiar a md5
+local   all             postgres                peer ----> Cambiar a md5
+
+2- Reiniciar el postgresql 
+systemctl restart postgresql
+
+3- Entrar al postgres
+
+-----------------------------------
+Cambiar contraseña postgres:
+-----------------------------------
+
+1-  su - postgres
+psql
+ALTER USER postgres WITH PASSWORD 'bodoque.123';
+
+2- Editar la siguiente linea del pg_hba.conf:
+
+nano /etc/postgresql/12/main/pg_hba.conf
+
+local   all             all                     peer ----> Cambiar a md5
+local   all             postgres                peer ----> Cambiar a md5
+
+DOCUMENTAR: https://www.arteco-consulting.com/gestion-de-usuarios-en-postgresql/
+
+3- systemctl restart postgresql
+
+------------------------------------
+Cambiar hora en la base de datos postgresql 
+------------------------------------
+Esto altera la hora que se cargan los expedientes en sudocu
+
+https://dbtut.com/index.php/2019/01/21/how-to-change-timezone-on-postgresql/
+
+1) Entrar a psql
+
+su - postgres 
+psql
+
+2) Mostrar la fecha
+
+select now();
+2022-02-18 11:08:50.727759-05;
+
+3) set TIMEZONE='America/Argentina/Buenos_Aires';
+
+select now();
+ 
+4) Ejecutar en las distintas databases
+
+ALTER DATABASE sudocu SET timezone TO 'America/Argentina/Buenos_Aires';
+ALTER DATABASE usuarios SET timezone TO 'America/Argentina/Buenos_Aires';
+ALTER DATABASE arai_documentos2 SET timezone TO 'America/Argentina/Buenos_Aires';
+ALTER DATABASE postgres SET timezone TO 'America/Argentina/Buenos_Aires';
+ALTER DATABASE nuxeo SET timezone TO 'America/Argentina/Buenos_Aires';
+
+-----------------------------------
+Ver conexiones activas a la base de datos - postgresql
+-----------------------------------
+
+select *
+from pg_stat_activity
+where datname = 'toba_3_0_wemes';
+
+-----------------------------------
+Ver logs de postgres
+----------------------------------- 
+
+tail -f /var/log/postgresql/postgresql-12-main.log
+
+A algunos logs postgresql los escribe en el archivo syslog 
+Tambien estos se pueden ver entrando al postgres
+su - postgres
+psql
+(Esto nos va a decir si el archivo de configuracion pg_hba tiene algun error en alguna linea)
+
+-----------------------------------
+
+Exportar:
+pg_dump -h localhost -U postgres -p 5432 db > db.sql
+pg_dump -h localhost -U moodle_user_nd -p 5432 db > db2023.sql
+
+pg_dump -h localhost -U postgres -p 5432 db > db.01042022.sql
+
+Exportar solo el schema de una base:
+pg_dump -h <host> -p <port> -U <user> <database> -n <schema> > <output>
+pg_dump -h localhost -p 5432 -U postgres db -n dos > dos.sql
+
+Importar:
+psql -d sudocu -h localhost -U postgres < archivobase.sql
+psql -d sudocu -h 127.0.0.1 -U postgres <db2022.sql
+pg_restore -U username -d dbname -1 filename.dump (Si el archivo es grande (7g), puede tardar +- una hora)
+
+Exportar Comprimido:
+pg_dump -Fc moodle_2020 > moodle_2020.dump
+pg_dump -Fc -h localhost -p 5432 -U moodleuser moodle_p > moodle_p_05_07_2023.dump
+
+Importar Comprimido:
+pg_restore -U postgres -Fc -d moodle2020 < moodle_2020.dump
+
+-----------------------------------
+pg_restore: [archiver] did not find magic string in file header
+Estas haciendo el restore con pgdump y no con psql como dice arriba
+-----------------------------------
+
+-----------------------------------
+No es posible realizar la conexion a la base
+-----------------------------------
+
+Postgresql da un error al ser un entorno de esclavo-master, el esclavo se intenta conectar pero el error dice en los logs 
+"hot standby is not possible because max_conecctions = 100 is  a lower value (on the master is 350)"
+
+editar el  postgresql.conf
+en max_connections escribir 350 
+
+reiniciar postgres 
+
+-----------------------------------
+Agregar permisos de lectura o consulta para un usuario en postgres
+-----------------------------------
+ 
+Entrar al PgAdmin > Posicionarse sobre la tabla > Properties >  Security > Elegimos el usuario > En el caso de lecura/consulta la propiedad es Selecy y la letra "r"
+
+ej. consultas_wemes
+ 
+------------------------------------
+Cambiar hora en la base de datos postgresql 
+------------------------------------
+
+https://dbtut.com/index.php/2019/01/21/how-to-change-timezone-on-postgresql/
+
+1) Entrar a psql
+
+su - postgres 
+psql
+
+2) Mostrar la fecha
+
+select now();
+2022-02-18 11:08:50.727759-05;
+
+3) Listar las timezones
+
+select * from pg_timezone_names ; 
+America/Argentina/Buenos_Aires
+
+4) Ejecutar en las distintas databases
+
+\l 
+
+set timezone='America/Argentina/Buenos_Aires';
+ALTER DATABASE sudocu SET timezone TO 'America/Argentina/Buenos_Aires';
+ALTER DATABASE usuarios SET timezone TO 'America/Argentina/Buenos_Aires';
+ALTER DATABASE araidocumentos2 SET timezone TO 'America/Argentina/Buenos_Aires';
+ALTER DATABASE postgres SET timezone TO 'America/Argentina/Buenos_Aires'; 
+ALTER DATABASE template0 SET timezone TO 'America/Argentina/Buenos_Aires';
+ALTER DATABASE template1 SET timezone TO 'America/Argentina/Buenos_Aires';
+
+------------------------------------
+Crear base de datos de sudocu Limpia
+------------------------------------
+
+createdb - xxx.xx.xx.xx -U postgres -p 5432 sudocu
+psql -h xxx.xx.xx.xx -U postgres -p 5432 -c "CREATE SCHEMA sudocu; ALTER SCHEMA sudocu OWNER TO postgres;" sudocu 
+
+------------------------------------
+Exportar en el PgAdmin
+------------------------------------
+
+Usar el boton de descargar como csv en la esquina superior derecha
+Abrir el archivo con el notepad
+Reemplazar todas las "," por ";" 
+En excel, los ";" refieren a columnas 
+------------------------------------
+
+Configurar el postgres con la herramienta PGTUNE
+
+Para editar los archivos de configuracion segun corresponda
+-----------------------------------
+
+Backup de MySql
+
+mysqldump -u root -p server_fveter > server_fveter.sql
+
+-----------------------------------
+
+Recuperar contraseña Mysql - root
+
+sudo service mysql stop
+
+sudo service mysql stop
+
+Cambiar de terminal (dejar abierta la anterior)
+
+mysql -u root
+
+mysql> UPDATE mysql.user SET Password=PASSWORD('password') WHERE User='root';
+
+sudo service mysql start
+
+-----------------------------------
+
+Filtrar resoluciones de consejo superior 
+id_tipo en tipo 3, es resolucion de consejo superior
+
+select titulo, nro, numero_asignado from sudocu.documentos
+where
+id_tipo =3
+
+-----------------------------------
+
+Actualizar un JSON en la base de datos
+
+
+{
+  "nro": 181,
+  "anio": 2022,
+  "tipo": "RESCS",
+  "organismo": "UUNN",
+  "numero_asignado": " RESCS -  181 /  2022 "
+}
+
+
+UPDATE sudocu.documentos
+SET nro = jsonb_set(nro, '{organismo}', '"universidad"', false)
+WHERE nro ->> 'organismo' = 'UUNN';
+
+-----------------------------------
+
+Instalar pgbouncer (En centos 6)
+
+Descargar con WinSCP los siguientes archivos instaladores porque en centos la instalacion daba error:
+
+python-psycopg2-doc-2.7.4-1.rhel6.x86_64.rpm
+python-psycopg2-2.7.4-1.rhel6.x86_64.rpm
+python2-psycopg2-tests-2.7.4-1.rhel6.x86_64.rpm
+postgresql10-libs-10.9-1PGDG.rhel6.x86_64.rpm
+pgbouncer-1.15.0-1.rhel6.x86_64.rpm
+
+Ejecutarlos para instalar pgbouncer:
+
+rpm -i python-psycopg2-doc-2.7.4-1.rhel6.x86_64.rpm
+rpm -i python2...
+
+Con touch, crear el archivo 
+touch userlist.txt en /etc/pgbouncer
+
+Editar el archivo userlist con los usuarios que van a acceder a la base de datos (usuario de Antonio)
+
+Editar el archivo pgbouncer.ini en el apartado databases con las distintas databases
+personal_universidad = host=127.0.0.1 port=5432 dbname=personal_universidad
+
+-----------
+
+Ver log de pgbouncer: tail -f /var/log/pgbouncer/pgbouncer.log
+
+-----------------------------------
+
+Crear usuario postgres / crear rol y asignarlo a usuarios
+
+https://aws.amazon.com/es/blogs/aws-spanish/managing-postgresql-users-and-roles/ 
+
+CREATE ROLE readonly;
+GRANT CONNECT ON DATABASE mydatabase TO readonly;
+GRANT USAGE ON SCHEMA myschema TO readonly;
+GRANT SELECT ON ALL TABLES IN SCHEMA myschema TO readonly;  (conectarse a la base de datos de sudocu (\c sudocu) y ejecutarlo desde ahi)
+
+Probar usuario desde el PgAdmin
+
+-----------------------------------
+
+Crear usuario y database con permisos
+
+CREATE DATABASE sitios_nd with owner moodleuser;
+CREATE USER moodleuser WITH PASSWORD '111';
+CREATE ROLE moodleuser WITH CREATEDB CREATEROLE;
+GRANT ALL PRIVILEGES ON DATABASE moodle_p TO moodleuser ;
+
+dropdb -U postgres mydb && \
+pg_restore --create --dbname=moodle_p --username=moodleuser pg_backup.dump
+
+\q
+
+-----------------------------------
+
+
+pg_dump -h localhost -U moodle_user_nd -p 5432 sitios_nd > sitios_nd_16_06_2023.sql
+psql -d sitios_nd -h localhost -U postgres < 
+
+$CFG->dbname    = 'sitios_nd';
+$CFG->dbuser    = 'moodle_user_nd';
+$CFG->dbpass    = 'pass123';
+
+
+CREATE USER emilio WITH PASSWORD 'password-del-usuario-emilio';
+GRANT ALL PRIVILEGES ON DATABASE facturas to emilio;
+\q
+
+Importar la base con el rol del usuario
+psql -d sitios_nd -h localhost -U moodle_user_nd < sitios_nd_16_06_2023.sql
+psql -d moodle_sitios_2020 -h localhost -U moodleuser < 
+
+-----------------------------------
+
+dropdb -U postgres moodle_sitios_2020 \
+ pg_restore --create --dbname=moodle_sitios_2020 --username=postgres
+ 
+----------------------------------- 
+ 
+ Backup remoto: pg_dump -h localhost -U moodleuser -d moodle_sitios_2020  -F c | ssh root@xxxx.xxxx.xxx "cat > /var/tmp/moodle_sitios2.sql"
+  
+  PRIMERO PONER LA PASS DE LA DB Y DESPUES LA DE ROOT AUNQUE NO TE LA PIDA
+  EL ARCHIVO TIENE QUE IR AUMENTADO DE ESPACIO EN EL SERVIDOR DESTINO
+-----------------------------------
+ 
+Select 
+ 
+-----------------------------------
+
+Server reached MaxRequestWorkers setting, consider raising the MaxRequestWorkers settings
+
+Consultar a Gabril si esto se debe a un ataque DDOS
+Gabril dijo que si, y esta trabajando el bloquear las IP externas que estan 
+
+-----------------------------------
+
+Instalar Mysql Sin internet:
+
+Descargar https://dev.mysql.com/get/Downloads/MySQL-8.4/mysql-server_8.4.0-1ubuntu22.04_amd64.deb-bundle.tar
+
+Mover la carpeta al servidor
+
+tar -xvf mysql-server_8.4.0-1ubuntu22.04_amd64.deb-bundle.tar
+
+dpkg -i *
+
+systemctl start mysql.service
+
+(No es necesario crear una base de datos, al crear la base de datos sigeva, el siguiente comando creo su propia DB e importo todo ahi)
+
+mysql -uroot -p sigeva<host_universidad_eva_000389_586787302.dmp
+
+Crear usuario sigeva
+
+GRANT ALL PRIVILEGES ON mydb.* TO 'myuser'@'localhost' WITH GRANT OPTION;
+SHOW GRANTS FOR ‘username’@’localhost’;
+CREATE USER ‘newuser’@’localhost’ IDENTIFIED BY ‘user_password’;
+
+-----------------------------------
+
+En postgres.conf -> Database: 
+
+>El parametro random_page_cost se utiliza para las lecturas del disco
+si es disco solido ponerlo ne 1.1, si es un rigido lento ponerlo en 4.0
+
+>El parametro effective_io_concurrecy es para la cantidad de solicitudes en simultaneo
+estaba en 2 y se paso a 200
+
+>El parametro work_mem = 10485kB   se aumenta de 5mil a ese valor para operaciones de trabajo temporales por operación de consulta
+
+En postgres.cofn -> Nuxeo:
+
+Se cambia  shared_buffers = 128MB a shared_buffers = 2Gg
+Cantidad de memoria que se reserva para almacenar en caché 
+
+Se cambia effective cache size a 6GB, estaba comentado 
+es una estimación de la cantidad de memoria RAM que el sistema operativo tiene disponible para la caché de discos
+
+
+maintenance_work_mem = 512MB, estaba comentado
+checkpoint_completion_target = 0.9, estaba comentado
+wal_buffers = 16MB, estaba comentado
+default_statistics_target= 100, estaba comentado
+random_page_cost = 1.1 estaba comentado
+effective_io_concurrency= 200, estaba comentado
+max_worker_processes, estaban todos comentados
+
+
+-----------------------------------
+Editar estas configuraciones en test
+
+-----------------------------------
+
+Consulta para cantidad de conexiones en tiempo real:
+
+SELECT sum(numbackends) FROM pg_stat_database;
+
+-----------------------------------
+
+https://pgtune.leopard.in.ua/
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

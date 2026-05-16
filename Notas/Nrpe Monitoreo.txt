@@ -1,0 +1,112 @@
+-------------------------------------------------------------------- Cómo configurar NRPE en un nuevo servidor----------------------------------------------------------------------------------------------------------------------------------------
+Guía rápida paso a paso para replicar la configuración de Nagios/NRPE entre servidores.
+
+
+## 📂 1. Instalar sudo y crear configuración de Naemon en Horus
+
+Instalar sudo:
+apt install sudo
+
+cd /mnt/horus-data/data/general/etc/servers/
+cp servidor.cfg servidor2.cfg
+mcedit servidor2.cfg
+# Reemplazar todas las ocurrencias de servidor por servidor2
+
+---
+
+## ✅ 2. Verificar configuración antes de recargar
+
+
+run-in-instance ${INSTANCIA} /check-config | grep -i Error
+# Ejemplo:
+run-in-instance instancia /check-config | grep -i Error
+
+
+Si hay errores, corregirlos. Luego recargar:
+
+run-in-instance ${INSTANCIA} /reload-config
+# Ejemplo:
+run-in-instance instancia /reload-config
+
+---
+
+## ⚙️ 4. Instalar NRPE y configurar comandos en servidor02
+
+apt update
+apt install nagios-nrpe-server lm-sensors
+
+centos alma
+dnf install nrpe lm_sensors
+
+---
+
+## 🔄 5. Copiar plugins desde servidor a servidor2
+
+Desde tu PC:
+
+scp servidor:/usr/lib/nagios/plugins/eth_speed servidor2:/usr/lib/nagios/plugins
+scp servidor:/usr/lib/nagios/plugins/mount_check.sh servidor2:/usr/lib/nagios/plugins
+scp servidor:/usr/lib/nagios/plugins/check_mount_readonly.sh servidor2:/usr/lib/nagios/plugins
+scp servidor:/usr/lib/nagios/plugins/check_smart.sh servidor2:/usr/lib/nagios/plugins
+scp servidor:/usr/lib/nagios/plugins/check_services.sh servidor2:/usr/lib/nagios/plugins
+scp servidor:/usr/lib/nagios/plugins/check_mem servidor2:/usr/lib/nagios/plugins
+scp servidor:/usr/lib/nagios/plugins/check_temp.sh servidor2:/usr/lib/nagios/plugins
+scp servidor:/etc/sudoers.d/nrpe servidor2:/etc/sudoers.d/nrpe
+scp servidor:/usr/lib/nagios/plugins/check_nrpe servidor2:/usr/lib/nagios/plugins
+
+---
+
+
+Editar `/etc/nagios/nrpe.cfg`:
+
+```bash
+nano /etc/nagios/nrpe.cfg
+```
+
+Agregar al final:
+
+```ini
+command[check_load]=/usr/lib/nagios/plugins/check_load -w 5,10,15 -c 10,15,20
+command[check_disk]=/usr/lib/nagios/plugins/check_disk -w 10% -c 5% -e --exclude-type=fuse --exclude-type=tmpfs
+command[check_smart]=sudo /usr/lib/nagios/plugins/check_smart.sh
+command[memory]=/usr/lib/nagios/plugins/check_mem -w 92 -c 96 -W 50 -C 60
+command[check_eth_speed]=/usr/lib/nagios/plugins/eth_speed
+command[check_temp]=/usr/lib/nagios/plugins/check_temp.sh --sensor Core -w 80 -c 90
+command[check_mount]=/usr/lib/nagios/plugins/mount_check.sh
+command[check_mount_readonly]=/usr/lib/nagios/plugins/check_mount_readonly.sh
+command[check_services]=/usr/lib/nagios/plugins/check_services.sh
+```
+
+Chequear que se hayan copiado los .sh
+
+---
+
+## 📊 5. Verificar cantidad de plugins
+
+cd /usr/lib/nagios/plugins
+ls -1 | wc -l
+
+---
+
+## 🔄 6. Habilitar y reiniciar el servicio NRPE
+
+systemctl start nagios-nrpe-server
+systemctl enable nagios-nrpe-server
+systemctl status nagios-nrpe-server
+systemctl reload nagios-nrpe-server
+
+
+---
+
+## 📝 Tips útiles
+
+- Para monitorear temperatura de la CPU:
+
+sensors
+
+- Para probar manualmente un comando desde el servidor de monitoreo (o donde tengas `check_nrpe`):
+
+/usr/lib/nagios/plugins/check_nrpe -H servidor -c check_disk
+/usr/lib/nagios/plugins/check_load -w 5,10,15 -c 10,15,20
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------

@@ -1,0 +1,173 @@
+----------------------------------------------------
+Alta servidor Marketing
+----------------------------------------------------
+
+app-front01a
+app-front01b
+
+-32gb RAM
+-1ssd 250GB para el SO y programas
+-1ssd 500GB para datos 
+Particionado del disco del sistema que tenga para boot, raiz y 8gb para swap
+-MICRO i7 
+
+-Red 1 para backend (onboard)
+-Red 2 para WAN
+
+
+----------------------------------------------------------------------------------------------------
+
+Configurar Friewall: 
+comprarar con directus y pupeteer
+
+nft list ruleset
+iptables -S
+
+iptables -L INPUT --line-numbers
+sudo iptables -I INPUT 5 -s xxx.xx.xx.xx/16 -p vrrp -j ACCEPT
+sudo iptables -I INPUT 6 -s xxx.xx.xx.xx/16 -p tcp --dport 8080 -j ACCEPT
+
+(comparar nft ruleset)
+
+envios
+835MyDM15jxI
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+[root@ /home/envios] # systemctl enable collectd.service
+Created symlink /etc/systemd/system/multi-user.target.wants/collectd.service → /usr/lib/systemd/system/collectd.service.
+[root@ /home/envios] # mkdir .ssh
+[root@ /home/envios] # chmod 700 /home/envios/.ssh/
+[root@ /home/envios] # touch /home/envios/.ssh/authorized_keys
+[root@ /home/envios] # chmod 664 .ssh/authorized_keys 
+[root@ /home/envios] # chown -R envios.envios /home/envios/.ssh/
+[root@ /home/envios/.ssh] # systemctl enable iptables.service
+[root@ /home/envios/.ssh] # systemctl enable ip6tables.service
+
+mkdir -p /home/envios/public_html
+mkdir -p /home/envios/public_html/logs
+
+chown -R envios.envios /home/envios/public_html
+
+wget https://rpm.nodesource.com/setup_22.x -O add_repo_nodejs.sh && chmod +x add_repo_nodejs.sh
+./add_repo_nodejs.sh
+dnf install -y nodejs && node --version
+
+
+dnf install nginx
+
+[root@ /etc/nginx/conf.d] # mcedit app-front01.linux.backend.conf 
+
+dnf install keepalived
+
+mcedit /etc/sysctl.d/98-balancer.conf
+
+[root@ /etc/NetworkManager/system-connections] # mcedit /etc/keepalived/notify.sh
+mcedit /etc/keepalived/keepalived.conf
+
+[root@ /etc/NetworkManager/system-connections] # chmod +x /etc/keepalived/notify.sh
+
+---------------------------------------------------------------------------------------------------- conf de keep en A
+vrrp_instance VI_1 {
+    state BACKUP
+    interface bkl0
+    virtual_router_id 10
+    priority 100
+    virtual_ipaddress {
+        flotante/16 dev bkl0 label bkl0:1
+    }
+    track_interface {
+        bkl0
+    }
+    advert_int 2
+    authentication {
+        auth_type PASS
+        
+    }
+    unicast_src_ip xxx.xx.xx.xx1
+    unicast_peer {
+        xxx.xx.xx.xx2
+    }
+    notify_master "/etc/keepalived/notify.sh del xxx.xx.xx.xx"
+    notify_backup "/etc/keepalived/notify.sh add xxx.xx.xx.xx"
+    notify_fault "/etc/keepalived/notify.sh add xxx.xx.xx.xx"
+    notify_stop "/etc/keepalived/notify.sh addxxx.xx.xx.xx"
+}
+
+virtual_server xxx.xx.xx.xx 8080 {
+    delay_loop 30
+    lb_algo rr
+    lb_kind DR
+    #persistence_timeout 50
+    protocol TCP
+    real_server xxx.xx.xx.xx 8080 {
+        weight 100
+        HTTP_GET {
+            url {
+                path /?status
+                status_code 200
+            }
+            nb_get_retry 2
+            connect_timeout 10
+        }
+    }
+    real_server xxx.xx.xx.xx 8080 {
+        weight 100
+        HTTP_GET {
+            url {
+                path /?status
+                status_code 200
+            }
+            nb_get_retry 2
+            connect_timeout 10
+        }
+    }
+}
+----------------------------------------------------------------------------------------------------
+
+exclude
+fe80::42ae:30ff:fe61:61b7/6
+
+
+sudo dnf install certbot python3-certbot-nginx -y
+sudo certbot --nginx  (hacer esto para configurar)
+----------------------------------------------------------------------------------------------------
+
+
+sudo nano /etc/udev/rules.d/70-wan0.rules
+Agrega esta línea:
+SUBSYSTEM=="net", ACTION=="add", ATTR{address}=="40:ae:30:61:61:b7", NAME="wan0"
+nmcli connection show
+
+nmcli connection modify eth0 connection.id wan0
+nmcli connection modify wan0 connection.interface-name wan0
+
+reboot
+
+----------------------------------------------------------------------------------------------------
+sudo iptables -L INPUT --line-numbers -n
+
+iptables-save > /etc/sysconfig/iptables
+
+---------------------------------------------------------------------------------------------------
+
+Agregar al graylog:
+
+desde panel, buscar el id de la virtual: 3474123
+
+Luego ir a graylog produccion (la virtual)
+firewall
+y agregar la ip publica
+
+bond p2p cable categoria 6
+
+
+---------------------------------------------------------------------------------------------------
+Instalar DRBD en alma9 
+
+
+sudo dnf install -y https://www.elrepo.org/elrepo-release-9.el9.elrepo.noarch.rpm
+rpm --import https://www.elrepo.org/RPM-GPG-KEY-elrepo.org
+dnf install drbd90-utils kmod-drbd90
+
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
