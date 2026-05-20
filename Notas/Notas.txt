@@ -2500,3 +2500,47 @@ Ver apps vulneradas en node:
 npm audit --omit=dev
 
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Cambio sdb y regeneracion de raid1 
+
+Esta gu¨ªa documenta el procedimiento para reconstruir un RAID1 utilizando mdadm luego de la p¨¦rdida y reemplazo de uno de los discos en servidores dedicados con AlmaLinux 9.
+Requisitos
+* Servidor booteado correctamente con el disco sano.
+* RAID en estado degraded.
+* Disco nuevo ya colocado y visible en el sistema.
+* Acceso root al servidor.
+
+1. Verificar estado inicial del RAID
+Ejecutar los siguientes comandos:
+
+cat /proc/mdstat
+lsblk
+El estado esperado es que los arrays se encuentren en modo degraded ([U_]) y que solo uno de los discos est¨¦ activo.
+
+2. Replicar tabla de particiones
+Copiar la tabla de particiones desde el disco sano hacia el disco nuevo usando sfdisk.
+Ejemplo: disco sano sda, disco nuevo sdb (Si el disco sano es sdb y el nuevo sda, invertir los nombres de los dispositivos.)
+
+sfdisk -d /dev/sda | sfdisk /dev/sdb
+#Avisar al kernel del cambio de particionado
+partprobe /dev/sdb
+3. Reagregar sdb al RAID
+
+mdadm --manage /dev/md0 --add /dev/sdb1
+mdadm --manage /dev/md1 --add /dev/sdb2
+mdadm --manage /dev/md2 --add /dev/sdb3
+mdadm --manage /dev/md3 --add /dev/sdb4
+4. Monitorear reconstrucci¨®n
+Monitorear el progreso de la sincronizaci¨®n con:
+
+watch cat /proc/mdstat
+Esperar a que todos los arrays queden en estado [2/2] [UU].
+
+Checklist final
+* Servidor booteado con disco sano.
+* Tabla de particiones replicada correctamente.
+* Disco agregado a todos los arrays md.
+* Reconstrucci¨®n completada.
+* Estado final [UU].
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
