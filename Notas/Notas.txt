@@ -2503,7 +2503,7 @@ npm audit --omit=dev
 
 Cambio sdb y regeneracion de raid1 
 
-Esta gu¨ªa documenta el procedimiento para reconstruir un RAID1 utilizando mdadm luego de la p¨¦rdida y reemplazo de uno de los discos en servidores dedicados con AlmaLinux 9.
+Esta guia documenta el procedimiento para reconstruir un RAID1 utilizando mdadm luego de la perdida y reemplazo de uno de los discos en servidores dedicados con AlmaLinux 9.
 Requisitos
 * Servidor booteado correctamente con el disco sano.
 * RAID en estado degraded.
@@ -2531,7 +2531,7 @@ mdadm --manage /dev/md1 --add /dev/sdb2
 mdadm --manage /dev/md2 --add /dev/sdb3
 mdadm --manage /dev/md3 --add /dev/sdb4
 4. Monitorear reconstrucci¨®n
-Monitorear el progreso de la sincronizaci¨®n con:
+Monitorear el progreso de la sincronizacin con:
 
 watch cat /proc/mdstat
 Esperar a que todos los arrays queden en estado [2/2] [UU].
