@@ -1,0 +1,76 @@
+#!/bin/bash
+## Sube dnsbl y preserva permisos de archivos existentes. Reinicia exim
+## Cambiar permisos desde carpeta de subida para ajustar
+## Solo ejecutar en el primario
+
+SERVIDORES=(
+#a
+)
+
+DESTINO_REMOTO="/etc/exim/dnsbl"
+
+FALLIDOS=()
+
+for SERVIDOR in "${SERVIDORES[@]}"; do
+  echo -e "\033[1;33mProcesando servidor: $SERVIDOR\033[0m"
+
+  # Backup remoto ANTES de copiar
+  ssh -o BatchMode=yes "root@$SERVIDOR" "
+    if [ -d ${DESTINO_REMOTO} ]; then
+      cp -a ${DESTINO_REMOTO} ${DESTINO_REMOTO}.bkp
+      echo 'Backup completo realizado en ${DESTINO_REMOTO}.bkp'
+    else
+      echo 'No existía ${DESTINO_REMOTO}, no se hizo backup.'
+    fi
+  " || {
+    echo "No se pudo conectar a $SERVIDOR"
+    FALLIDOS+=("$SERVIDOR")
+    continue
+  }
+
+  # Copiar contenido
+  scp -o BatchMode=yes -pr dnsbl/* "root@$SERVIDOR:${DESTINO_REMOTO}/" \
+  && echo "Contenido copiado con éxito a $SERVIDOR" \
+  || {
+    echo "No se pudo copiar contenido a $SERVIDOR"
+    FALLIDOS+=("$SERVIDOR")
+    continue
+  }
+
+  # Ajustar permisos y ownership
+  ssh -o BatchMode=yes "root@$SERVIDOR" "
+
+    chown exim:exim ${DESTINO_REMOTO}/nombrearchivo.txt
+    chown exim:exim ${DESTINO_REMOTO}/confirme.ip.bash
+    chown exim:exim ${DESTINO_REMOTO}/separacion.bsh
+    chmod 755 ${DESTINO_REMOTO}/confirme.ip.bash
+  " || {
+    echo "No se pudieron ajustar permisos en $SERVIDOR"
+    FALLIDOS+=("$SERVIDOR")
+    continue
+  }
+
+  # Reiniciar Exim
+  ssh -o BatchMode=yes "root@$SERVIDOR" "
+    if systemctl is-active --quiet exim.service; then
+      echo 'Esperando 3 segundos antes de reiniciar Exim...'
+      sleep 3
+      systemctl restart exim.service && echo '[\$(hostname)] Exim reiniciado correctamente.'
+    else
+      echo '[\$(hostname)] Exim está detenido. No se reinicia.'
+    fi
+  " || {
+    echo "No se pudo reiniciar Exim en $SERVIDOR"
+    FALLIDOS+=("$SERVIDOR")
+    continue
+  }
+
+  echo -e "\033[1;32mCompletado para $SERVIDOR\033[0m"
+done
+
+# Mostrar fallidos
+if [ ${#FALLIDOS[@]} -gt 0 ]; then
+  echo
+  echo "Servidores con errores:"
+  printf '%s\n' "${FALLIDOS[@]}"
+f
