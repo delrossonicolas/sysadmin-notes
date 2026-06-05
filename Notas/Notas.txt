@@ -2543,4 +2543,11 @@ Checklist final
 * Reconstrucci¨®n completada.
 * Estado final [UU].
 
+--------------------------------------------------------------------------------------------------
+
+Ver procesos colgados en drbd, los mismos hacen que no se puedan pasar los servicios
+
+fuser -vm /dev/drbd0
+Matarlos con pm2 kill por ejemplo o añadir al script de pase de servicios algo que los mate
+
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
