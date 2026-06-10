@@ -2550,4 +2550,31 @@ Ver procesos colgados en drbd, los mismos hacen que no se puedan pasar los servi
 fuser -vm /dev/drbd0
 Matarlos con pm2 kill por ejemplo o añadir al script de pase de servicios algo que los mate
 
+------------- Instalr ftpd ---------------------
+
+ 
+dnf install vsftpd
+systemctl enable --now vsftpd
+
+nano /etc/vsftpd/vsftpd.conf
+
+echo "performance" > /etc/vsftpd/user_list
+
+iptables -I INPUT 3 -s xx.xx.xx.xx/24 -p tcp --dport 21 -j ACCEPT
+iptables -I INPUT 4 -s xx.xx.xx.xx/24 -p tcp --dport 40000:45000 -j ACCEPT
+iptables -I INPUT 3 -s xx.xx.xx.xx/16 -p tcp --dport 21 -j ACCEPT
+iptables -I INPUT 4 -s xx.xx.xx.xx/16 -p tcp --dport 40000:45000 -j ACCEPT
+
+22   ACCEPT     tcp  --  anywhere             anywhere             tcp dpts:safetynetp:asmp
+23   ACCEPT     tcp  --  anywhere             anywhere             tcp dpt:ftp
+
+
+#  cat /etc/sysconfig/iptables
+
+
+systemctl restart vsftpd.service 
+
+----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+
 ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
