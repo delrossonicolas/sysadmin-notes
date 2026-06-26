@@ -793,6 +793,8 @@ cat /sys/class/net/wan0/carrier
 ethtool wan0 | grep -i link
 ethtool bkl0 | grep Speed
 
+Errores:
+ethtool -S p2p1
 
 1000 es bueno
 100  es malo
