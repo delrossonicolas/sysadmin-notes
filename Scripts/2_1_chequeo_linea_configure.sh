@@ -11,8 +11,8 @@
 #!/bin/bash
 
 SERVIDORES=(
-dattasites1
-dattasites2
+1
+2
 )
 
 ENCONTRADOS=()  # Lista para guardar los que tienen la línea

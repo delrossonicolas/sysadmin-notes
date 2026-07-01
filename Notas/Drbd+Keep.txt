@@ -39,7 +39,7 @@ dnf install keepalived
 
 global_defs {
     notification_email {
-        informes.diarios@donweb.com
+        informes.diarios@empresa.com
     }
 
     notification_email_from root@directusa.com (invertir en el b)

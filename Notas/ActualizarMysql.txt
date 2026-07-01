@@ -10,7 +10,7 @@ CentOS release 6.10 (Final)
 # mysql -V
 mysql  Ver 14.14 Distrib 5.6.26, for Linux (x86_64) using  EditLine wrapper
 
-Descargar los paquetes de mysql 5.7 (ver la ultima version disponible en https://dev.mysql.com/downloads/mysql/5.7.html, en este momento es la 5.7.44, descargar las nuevas en dattasites/panel.net)
+Descargar los paquetes de mysql 5.7 (ver la ultima version disponible en https://dev.mysql.com/downloads/mysql/5.7.html, en este momento es la 5.7.44, descargar las nuevas en servidor1/panel.net)
 
 Para CentOS 6:
 

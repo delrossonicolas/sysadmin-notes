@@ -1843,7 +1843,7 @@ sed -i LO REEMPLAZA
 Cambio de disco de /backup sdd
 
 Error de smart SMARTD
-Primero chequear sata y molex, reiniciar y fijarse que este en secundario ya que dattasites funciona con drbd.
+Primero chequear sata y molex, reiniciar y fijarse que este en secundario ya que servidor1 funciona con drbd.
 Sacar ID con smartctl -a /dev/sbd
 
 systemctl stop keepalived.service
@@ -2420,7 +2420,7 @@ scp -p graylog01:/root/graylog-plugin-slack-3.1.0.jar graylog01b:/root/
   216  2026-05-13 11:38:36 nmcli connection modify bkl0 ipv4.addresses xxx.xx.xx.xx/16
   217  2026-05-13 11:38:38 nmcli connection modify bkl0 ipv4.gateway xxx.xx.xx.xx
   218  2026-05-13 11:38:40 nmcli connection modify bkl0 ipv4.dns "xxx.xx.xx.xx 8.8.8.8"
-  219  2026-05-13 11:38:43 nmcli connection modify bkl0 ipv4.dns-search "linux.backend dattaweb.com"
+  219  2026-05-13 11:38:43 nmcli connection modify bkl0 ipv4.dns-search "linux.backend empresa.com"
   220  2026-05-13 11:38:46 nmcli connection modify bkl0 ipv4.method manual
   221  2026-05-13 11:38:50 nmcli connection up bkl0
   222  2026-05-13 11:38:53 ip a
@@ -2433,7 +2433,7 @@ scp -p graylog01:/root/graylog-plugin-slack-3.1.0.jar graylog01b:/root/
 nmcli connection modify bkl0 ipv4.addresses xxx.xx.xx.xx
 nmcli connection modify bkl0 ipv4.gateway xxx.xx.xx.xx
 nmcli connection modify bkl0 ipv4.dns "xxx.xx.xx.xx"
-nmcli connection modify bkl0 ipv4.dns-search "linux.backend dattaweb.com"
+nmcli connection modify bkl0 ipv4.dns-search "linux.backend empresa.com"
 nmcli connection modify bkl0 ipv4.method manual
 
 
